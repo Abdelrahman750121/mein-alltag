@@ -5,6 +5,7 @@ Eine Expo-App für Alltagsaufgaben mit deutscher Oberfläche.
 - Aufgaben hinzufügen, abhaken, wieder öffnen und löschen.
 - Vorschläge: Kochen, Spielen, Buch lesen und Laufen.
 - Fortschrittsanzeige und lokale Speicherung auf dem Gerät.
+- Tagesverlauf mit Heute, Gestern, früheren Tagen und Erledigungszeitpunkt.
 - Aufgaben bleiben erhalten, bis du sie löschst; kein automatischer Tageswechsel.
 
 ## Starten
@@ -37,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- Vier automatisierte Tests: Aufgabenablauf, Eingabegrenzen, Speicherrundlauf und ungültige Speicherdaten.
+- Zwölf automatisierte Tests: Aufgabenablauf, Eingabegrenzen, Speicherformat, Verlauf, Migration, Tageswechsel und ungültige Speicherdaten.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -60,3 +61,17 @@ Nach einem SDK-Wechsel den laufenden Server mit Strg+C stoppen und neu starten:
 ```sh
 npx expo start --clear
 ```
+
+## Tagesverlauf
+Neue Häkchen speichern den lokalen Kalendertag, Zeitpunkt und Aufgabentitel.
+Unter „Dein Tagesverlauf“ sind Heute, Gestern und über die Pfeile frühere Tage wählbar.
+Der Verlauf bleibt beim Löschen einer Aufgabe erhalten. Das Zurücknehmen eines Häkchens
+am selben Tag entfernt dessen Tageseintrag. Beim Wiederöffnen an einem späteren Tag
+bleibt der frühere Eintrag erhalten; erneutes Abhaken schreibt einen Eintrag für den neuen Tag.
+Es gibt höchstens einen Verlaufseintrag pro Aufgabe und Tag.
+
+Bestehende Aufgaben werden aus dem alten Speicher übernommen. Bereits gesetzte Häkchen
+haben kein rekonstruierbares Datum und werden deshalb nicht rückwirkend einem Tag zugeordnet.
+Der bisherige Speicher bleibt als Migrationsquelle erhalten. Der neue Speicher enthält
+Aufgaben und Verlauf gemeinsam; beschädigte neue Daten werden nicht durch alte überschrieben.
+Die Aufgaben werden am nächsten Tag nicht automatisch zurückgesetzt.

@@ -15,18 +15,25 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
-  addTask,
-  decodeTasks,
-  removeTask,
+  addProgressTask,
+  readProgress,
+  removeProgressTask,
+  emptyProgress,
+  dayDate,
+  Progress,
   STORAGE_KEY,
   Task,
-  toggleTask,
+  toggleProgress,
 } from "./tasks";
+
+import History, { useLocalDay } from "./History";
 
 const ideas = ["Kochen", "Spielen", "Buch lesen", "Laufen"];
 
 function TasksScreen() {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [progress, setProgress] = useState<Progress>(emptyProgress);
+  const tasks = progress.tasks;
+  const today = useLocalDay();
   const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -42,8 +49,8 @@ function TasksScreen() {
     setLoading(true);
     setError("");
     try {
-      const stored = decodeTasks(await AsyncStorage.getItem(STORAGE_KEY));
-      setTasks(stored);
+      const stored = await readProgress(AsyncStorage);
+      setProgress(stored);
       setLoaded(true);
     } catch {
       setError(
@@ -59,7 +66,7 @@ function TasksScreen() {
   useEffect(() => {
     if (!loaded) return;
     const version = ++saveVersion.current;
-    const snapshot = JSON.stringify(tasks);
+    const snapshot = JSON.stringify(progress);
     setSaving(true);
     saveQueue.current = saveQueue.current
       .catch(() => {})
@@ -73,12 +80,12 @@ function TasksScreen() {
           if (version === saveVersion.current) setSaving(false);
         }
       });
-  }, [tasks, loaded, retry]);
+  }, [progress, loaded, retry]);
 
   function add(value = title) {
     if (!loaded || !value.trim()) return;
     const id = `${Date.now()}-${++sequence.current}-${Math.random().toString(36).slice(2)}`;
-    setTasks((current) => addTask(current, value, id));
+    setProgress((current) => addProgressTask(current, value, id));
     setTitle("");
     Keyboard.dismiss();
   }
@@ -93,7 +100,8 @@ function TasksScreen() {
           accessibilityRole="checkbox"
           accessibilityLabel={task.title}
           accessibilityState={{ checked: task.done }}
-          onPress={() => setTasks((current) => toggleTask(current, task.id))}
+          aria-checked={task.done}
+          onPress={() => setProgress((current) => toggleProgress(current, task.id))}
           style={styles.taskTouch}
         >
           <View style={[styles.checkbox, task.done && styles.checkboxDone]}>
@@ -106,7 +114,7 @@ function TasksScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${task.title} löschen`}
-          onPress={() => setTasks((current) => removeTask(current, task.id))}
+          onPress={() => setProgress((current) => removeProgressTask(current, task.id))}
           hitSlop={4}
           style={styles.delete}
         >
@@ -135,7 +143,7 @@ function TasksScreen() {
             </View>
           </View>
           <Text style={styles.date}>
-            {new Date().toLocaleDateString("de-AT", {
+            {dayDate(today).toLocaleDateString("de-AT", {
               weekday: "long",
               day: "numeric",
               month: "long",
@@ -268,6 +276,7 @@ function TasksScreen() {
                   )}
                 </>
               )}
+              <History progress={progress} today={today} />
               {saveError ? (
                 <View style={styles.errorBox}>
                   <Text accessibilityRole="alert" style={styles.errorText}>
@@ -558,4 +567,5 @@ const styles = StyleSheet.create({
   retry: { minHeight: 44, justifyContent: "center", marginTop: 4 },
   retryText: { color: "#703B25", fontWeight: "700" },
 });
+
 
