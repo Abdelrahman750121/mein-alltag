@@ -128,7 +128,7 @@ function TasksScreen() {
         >
           <View style={styles.header}>
             <Text style={styles.brand}>
-              mein alltag<Text style={styles.brandDot}>.</Text>
+              My progress<Text style={styles.brandDot}>.</Text>
             </Text>
             <View style={styles.dayBadge}>
               <Text style={styles.dayText}>DEIN TEMPO</Text>
@@ -558,3 +558,4 @@ const styles = StyleSheet.create({
   retry: { minHeight: 44, justifyContent: "center", marginTop: 4 },
   retryText: { color: "#703B25", fontWeight: "700" },
 });
+

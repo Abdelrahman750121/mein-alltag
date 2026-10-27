@@ -1,4 +1,4 @@
-# Mein Alltag
+# My progress
 Eine Expo-App für Alltagsaufgaben mit deutscher Oberfläche.
 
 ## Funktionen
@@ -45,3 +45,4 @@ Die Paketprüfung meldet eine bekannte Schwachstelle in Zod 3, das von der Expo 
 verwendet wird (GHSA-mrhx-c7xc-m3w5). Die App verwendet Zod nicht direkt. Ein erzwungener
 Wechsel auf Zod 4 oder ein Downgrade des Expo SDK wurde wegen möglicher Inkompatibilität
 nicht vorgenommen. Vor einer Veröffentlichung die aktuelle Expo-Version erneut prüfen.
+
