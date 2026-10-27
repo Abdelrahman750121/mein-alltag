@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,9 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   addProgressTask,
+  configureTask,
+  isTaskDone,
+  formatTime,
   readProgress,
   removeProgressTask,
   emptyProgress,
@@ -27,13 +31,24 @@ import {
 } from "./tasks";
 
 import History, { useLocalDay } from "./History";
+import WeekOverview from "./WeekOverview";
+import TaskSettings from "./TaskSettings";
+import { syncReminders } from "./reminders";
 
 const ideas = ["Kochen", "Spielen", "Buch lesen", "Laufen"];
 
 function TasksScreen() {
   const [progress, setProgress] = useState<Progress>(emptyProgress);
-  const tasks = progress.tasks;
   const today = useLocalDay();
+  const tasks = progress.tasks.map((task) => ({
+    ...task,
+    done: isTaskDone(progress, task, today),
+  }));
+  const [daily, setDaily] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [reminderError, setReminderError] = useState("");
+  const [refreshReminders, setRefreshReminders] = useState(0);
+  const editingTask = tasks.find((task) => task.id === editingId);
   const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,6 +77,10 @@ function TasksScreen() {
   }
   useEffect(() => {
     void load();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") setRefreshReminders((value) => value + 1);
+    });
+    return () => subscription.remove();
   }, []);
   useEffect(() => {
     if (!loaded) return;
@@ -74,18 +93,29 @@ function TasksScreen() {
         try {
           await AsyncStorage.setItem(STORAGE_KEY, snapshot);
           if (version === saveVersion.current) setSaveError(false);
+          try {
+            await syncReminders(progress);
+            if (version === saveVersion.current) setReminderError("");
+          } catch (error) {
+            if (version === saveVersion.current)
+              setReminderError(
+                error instanceof Error
+                  ? error.message
+                  : "Erinnerungen konnten nicht eingerichtet werden.",
+              );
+          }
         } catch {
           if (version === saveVersion.current) setSaveError(true);
         } finally {
           if (version === saveVersion.current) setSaving(false);
         }
       });
-  }, [progress, loaded, retry]);
+  }, [progress, loaded, retry, today, refreshReminders]);
 
   function add(value = title) {
     if (!loaded || !value.trim()) return;
     const id = `${Date.now()}-${++sequence.current}-${Math.random().toString(36).slice(2)}`;
-    setProgress((current) => addProgressTask(current, value, id));
+    setProgress((current) => addProgressTask(current, value, id, daily));
     setTitle("");
     Keyboard.dismiss();
   }
@@ -101,20 +131,46 @@ function TasksScreen() {
           accessibilityLabel={task.title}
           accessibilityState={{ checked: task.done }}
           aria-checked={task.done}
-          onPress={() => setProgress((current) => toggleProgress(current, task.id))}
+          onPress={() =>
+            setProgress((current) => toggleProgress(current, task.id))
+          }
           style={styles.taskTouch}
         >
           <View style={[styles.checkbox, task.done && styles.checkboxDone]}>
             <Text style={styles.check}>{task.done ? "✓" : ""}</Text>
           </View>
-          <Text style={[styles.taskTitle, task.done && styles.taskTitleDone]}>
-            {task.title}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.taskTitle,
+                { flex: 0 },
+                task.done && styles.taskTitleDone,
+              ]}
+            >
+              {task.title}
+            </Text>
+            <Text style={styles.taskMeta}>
+              {task.daily ? "Täglich" : "Einmalig"}
+              {task.reminder
+                ? ` · Erinnerung ${formatTime(task.reminder)}`
+                : ""}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Einstellungen für ${task.title}`}
+          onPress={() => setEditingId(task.id)}
+          style={styles.delete}
+        >
+          <Text style={styles.deleteText}>⋯</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${task.title} löschen`}
-          onPress={() => setProgress((current) => removeProgressTask(current, task.id))}
+          onPress={() =>
+            setProgress((current) => removeProgressTask(current, task.id))
+          }
           hitSlop={4}
           style={styles.delete}
         >
@@ -234,6 +290,19 @@ function TasksScreen() {
                   <Text style={styles.addText}>+</Text>
                 </Pressable>
               </View>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel="Neue Aufgaben täglich wiederholen"
+                accessibilityState={{ checked: daily }}
+                aria-checked={daily}
+                onPress={() => setDaily((value) => !value)}
+                style={styles.dailyChoice}
+              >
+                <View style={[styles.checkbox, daily && styles.checkboxDone]}>
+                  <Text style={styles.check}>{daily ? "✓" : ""}</Text>
+                </View>
+                <Text style={styles.dailyLabel}>Täglich wiederholen</Text>
+              </Pressable>
               <View style={styles.ideas}>
                 {ideas.map((idea) => (
                   <Pressable
@@ -276,7 +345,24 @@ function TasksScreen() {
                   )}
                 </>
               )}
+              <WeekOverview progress={progress} today={today} />
               <History progress={progress} today={today} />
+              {!!reminderError && (
+                <View style={styles.errorBox}>
+                  <Text accessibilityRole="alert" style={styles.errorText}>
+                    Erinnerungen: {reminderError}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setRetry((value) => value + 1)}
+                    style={styles.retry}
+                  >
+                    <Text style={styles.retryText}>
+                      Erinnerungen erneut einrichten
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
               {saveError ? (
                 <View style={styles.errorBox}>
                   <Text accessibilityRole="alert" style={styles.errorText}>
@@ -308,6 +394,19 @@ function TasksScreen() {
           </Text>
         </ScrollView>
       </KeyboardAvoidingView>
+      {editingTask && (
+        <TaskSettings
+          key={editingTask.id}
+          task={editingTask}
+          onClose={() => setEditingId(null)}
+          onSave={(settings) => {
+            setProgress((current) =>
+              configureTask(current, editingTask.id, settings),
+            );
+            setEditingId(null);
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -320,6 +419,15 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  dailyChoice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 44,
+    marginTop: 10,
+  },
+  dailyLabel: { fontSize: 13, color: "#526747" },
+  taskMeta: { color: "#6D796C", fontSize: 11, lineHeight: 17, marginTop: 3 },
   flex: { flex: 1 },
   safe: { flex: 1, backgroundColor: "#F7F8F2" },
   page: {
@@ -567,5 +675,3 @@ const styles = StyleSheet.create({
   retry: { minHeight: 44, justifyContent: "center", marginTop: 4 },
   retryText: { color: "#703B25", fontWeight: "700" },
 });
-
-

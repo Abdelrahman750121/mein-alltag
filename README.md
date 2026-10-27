@@ -6,7 +6,7 @@ Eine Expo-App für Alltagsaufgaben mit deutscher Oberfläche.
 - Vorschläge: Kochen, Spielen, Buch lesen und Laufen.
 - Fortschrittsanzeige und lokale Speicherung auf dem Gerät.
 - Tagesverlauf mit Heute, Gestern, früheren Tagen und Erledigungszeitpunkt.
-- Aufgaben bleiben erhalten, bis du sie löschst; kein automatischer Tageswechsel.
+- Aufgaben bleiben erhalten; tägliche Aufgaben sind an jedem neuen Tag wieder offen.
 
 ## Starten
 Node.js 24 LTS installieren, dann im Projektordner:
@@ -38,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- Zwölf automatisierte Tests: Aufgabenablauf, Eingabegrenzen, Speicherformat, Verlauf, Migration, Tageswechsel und ungültige Speicherdaten.
+- 21 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungsplanung und Wochenübersicht.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -74,4 +74,25 @@ Bestehende Aufgaben werden aus dem alten Speicher übernommen. Bereits gesetzte 
 haben kein rekonstruierbares Datum und werden deshalb nicht rückwirkend einem Tag zugeordnet.
 Der bisherige Speicher bleibt als Migrationsquelle erhalten. Der neue Speicher enthält
 Aufgaben und Verlauf gemeinsam; beschädigte neue Daten werden nicht durch alte überschrieben.
-Die Aufgaben werden am nächsten Tag nicht automatisch zurückgesetzt.
+Einmalige Aufgaben bleiben erledigt. Tägliche Aufgaben sind an jedem neuen lokalen Kalendertag wieder offen; der Verlauf bleibt erhalten.
+
+## Tägliche Aufgaben, Erinnerungen und Wochenübersicht
+- Neue Aufgaben sind standardmäßig täglich. Die Auswahl unter dem Eingabefeld schaltet auf einmalige Aufgaben um.
+- Bestehende Aufgaben werden als einmalig übernommen. Über ⋯ an einer Aufgabe lassen sich Wiederholung und Erinnerung einstellen.
+- Tägliche Aufgaben brauchen keinen Hintergrundprozess zum Zurücksetzen: Ihr Status wird aus dem Verlauf für den aktuellen lokalen Tag berechnet.
+- Die Wochenübersicht zeigt Montag bis Sonntag und lässt frühere Wochen ansehen. Gelöschte Aufgaben bleiben in ihren historischen Zählungen erhalten.
+
+Erinnerungen verwenden expo-notifications (~58.1.6) und sind auf dem Gerät lokal geplant.
+Die Berechtigung wird erst beim Speichern einer aktivierten Erinnerung angefragt.
+Tägliche Erinnerungen wiederholen sich zur Uhrzeit, auch bei bereits abgehakter Aufgabe,
+bis sie ausgeschaltet oder die Aufgabe gelöscht wird. Einmalige Erinnerungen sind einmal
+für die nächste gewählte Uhrzeit geplant (falls heute schon vorbei: morgen). Abhaken schaltet
+sie aus. Abgelaufene einmalige Erinnerungen werden nicht erneut angesetzt.
+
+Berechtigungen, Fokus-Modus und Mitteilungseinstellungen des iPhones können die Anzeige
+beeinflussen. Auf dem iPhone muss die Zustellung noch praktisch geprüft werden.
+Die Browseransicht unterstützt Aufgaben und Statistiken; Erinnerungen richtet man in der
+nativen App ein. Kein Push-Token, Server oder externer Benachrichtigungsdienst wird verwendet.
+
+Speicher-Version 3 übernimmt Version 2 einschließlich Verlauf und fällt bei beschädigten
+neuen Daten nicht still auf eine alte Version zurück. Alte Speicher bleiben als Migrationsquelle erhalten.
