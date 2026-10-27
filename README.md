@@ -17,7 +17,7 @@ npm start
 
 QR-Code mit einer passenden Expo-Go-Version auf dem Handy öffnen.
 Computer und Handy sollten im gleichen WLAN sein. Webvorschau: `npm run web`.
-Das Projekt verwendet Expo SDK 57. Expo Go muss diese Version unterstützen;
+Das Projekt verwendet Expo SDK 58. Expo Go muss diese Version unterstützen;
 alternativ einen passenden Development Build verwenden.
 
 ## Prüfungen
@@ -46,3 +46,17 @@ verwendet wird (GHSA-mrhx-c7xc-m3w5). Die App verwendet Zod nicht direkt. Ein er
 Wechsel auf Zod 4 oder ein Downgrade des Expo SDK wurde wegen möglicher Inkompatibilität
 nicht vorgenommen. Vor einer Veröffentlichung die aktuelle Expo-Version erneut prüfen.
 
+
+
+## Upgrade auf SDK 58
+Expo ist auf ~58.0.0 eingestellt (installierter Patch: 58.0.19).
+Die zugehörigen Pakete wurden mit expo install --fix abgeglichen:
+React 19.3.0, React Native 0.88.0 sowie passende Status-Bar-, Safe-Area- und React-Typen.
+Validiert: vier Funktionstests, TypeScript, Web-Export, iOS-Hermes-Bundle und
+Expo Doctor (20/20 Prüfungen). Ein Test auf einem echten iPhone steht noch aus.
+
+Nach einem SDK-Wechsel den laufenden Server mit Strg+C stoppen und neu starten:
+
+```sh
+npx expo start --clear
+```
