@@ -42,3 +42,5 @@ Wiederherstellung erst nach erfolgreichem Speichern in der Oberfläche übernehm
 Persönliche Backup-Dateien nicht in Git oder Quellcode-Archive aufnehmen. Native Dateimenüs nur als getestet bezeichnen, wenn wirklich am Gerät geprüft.
 
 Navigation: Heute, Verlauf, Statistik und Einstellungen. Vom Nutzer am 28.10.2026 zum Speichern in Git und GitHub freigegeben. Seitenwechsel erhalten Eingaben und den gewählten Verlauf; Datenmodell und lokale Speicherung bleiben erhalten.
+
+Refactoring: App.tsx verbindet die Navigation mit TodayScreen, HistoryScreen, StatisticsScreen und SettingsScreen. Seiten bleiben beim Wechsel montiert. useProgress.ts verwaltet Laden, geordnete Speicherzugriffe und Wiederherstellung; Speicherformat und Schlüssel bleiben unverändert. npm test umfasst auch die Speicherkette und erneutes Laden im Hook-Test.

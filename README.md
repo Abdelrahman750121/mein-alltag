@@ -38,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- 42 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungen, Statistiken, Serien, Bearbeiten, Kategorien und Datensicherung.
+- 48 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungen, Statistiken, Serien, Bearbeiten, Kategorien und Datensicherung.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -165,3 +165,18 @@ Eingaben und die gewählte Verlaufsansicht bleiben beim Seitenwechsel erhalten.
 Zwei freistehende Leerzeichen außerhalb von Text-Komponenten wurden entfernt.
 Eine zusätzliche Prüfung erkennt solche Textknoten in den App-Komponenten.
 Validiert: 42 Tests, TypeScript und Web-Build. Die korrigierte Ansicht muss noch auf dem iPhone geprüft werden.
+
+
+## Aufbau des Quellcodes
+- App.tsx: Navigation und Verbindung der vier Seiten.
+- TodayScreen.tsx: Eingabe, Filter, Häkchen und Aufgabenbearbeitung.
+- HistoryScreen.tsx: Seite für den Tagesverlauf; History.tsx enthält die Datumsauswahl.
+- StatisticsScreen.tsx: Wochenübersicht und Serien.
+- SettingsScreen.tsx: Kategorien und Datensicherung.
+- AppLayout.tsx und ProgressStatus.tsx: gemeinsame Seitenelemente und Statusmeldungen.
+- useProgress.ts: Laden, geordnete Speicherung, Erinnerungsabgleich und Wiederherstellung.
+- tasks.ts und backup.ts: unveränderte Datenregeln und Sicherungsformat.
+
+Alle Seiten bleiben beim Wechsel montiert, damit Entwürfe, Datumsauswahl und Scrollpositionen erhalten bleiben. Eine erfolgreiche Wiederherstellung schließt den Aufgaben-Editor und setzt den Kategorienfilter zurück.
+
+Zusätzlich zu den bisherigen 42 Tests prüfen sechs Hook-Tests das erneute Laden von Aufgaben und Verlauf, beschädigte Daten, langsame Schreibzugriffe, Wiederherstellung bei wartenden Speicheraufträgen sowie Speicher- und Erinnerungsfehler. Dafür werden Geräte-Speicher und React-Effekte kontrolliert simuliert; dies ersetzt keinen echten iPhone-Test.

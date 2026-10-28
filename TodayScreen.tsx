@@ -1,0 +1,569 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  Keyboard,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import {
+  addProgressTask,
+  configureTask,
+  isTaskDone,
+  formatTime,
+  taskStreak,
+  Category,
+  CategoryFilter,
+  categoryLabel,
+  filterTasks,
+  removeProgressTask,
+  dayDate,
+  Task,
+  toggleProgress,
+} from "./tasks";
+import { TabPage } from "./AppLayout";
+import { LoadingState, StorageStatus, ScreenProps } from "./ProgressStatus";
+import CategoryPicker from "./CategoryPicker";
+import TaskSettings from "./TaskSettings";
+const ideas = ["Kochen", "Spielen", "Buch lesen", "Laufen"];
+
+export default function TodayScreen({
+  active,
+  store,
+  today,
+  categoryFilter,
+  onCategoryFilterChange: setCategoryFilter,
+}: ScreenProps & {
+  categoryFilter: CategoryFilter;
+  onCategoryFilterChange(value: CategoryFilter): void;
+}) {
+  const { progress, setProgress, loaded, restoreVersion } = store;
+  const [category, setCategory] = useState<Category>("none");
+  const [daily, setDaily] = useState(true);
+  const [title, setTitle] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const sequence = useRef(0);
+  useEffect(() => {
+    setEditingId(null);
+  }, [restoreVersion]);
+  const allTasks = progress.tasks.map((task) => ({
+    ...task,
+    done: isTaskDone(progress, task, today),
+  }));
+  const tasks = filterTasks(allTasks, categoryFilter);
+  const editingTask = allTasks.find((task) => task.id === editingId);
+  function add(value = title) {
+    if (!loaded || !value.trim()) return;
+    const id = `${Date.now()}-${++sequence.current}-${Math.random().toString(36).slice(2)}`;
+    setProgress((current) =>
+      addProgressTask(current, value, id, daily, category),
+    );
+    setTitle("");
+    if (categoryFilter !== "all" && categoryFilter !== category)
+      setCategoryFilter(category);
+    Keyboard.dismiss();
+  }
+  const completed = allTasks.filter((task) => task.done).length;
+  const percent = allTasks.length
+    ? Math.round((completed / allTasks.length) * 100)
+    : 0;
+  function row(task: Task) {
+    const streak = task.daily ? taskStreak(progress, task.id, today) : null;
+    return (
+      <View key={task.id} style={[styles.row, task.done && styles.rowDone]}>
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityLabel={task.title}
+          accessibilityState={{ checked: task.done }}
+          aria-checked={task.done}
+          onPress={() =>
+            setProgress((current) => toggleProgress(current, task.id))
+          }
+          style={styles.taskTouch}
+        >
+          <View style={[styles.checkbox, task.done && styles.checkboxDone]}>
+            <Text style={styles.check}>{task.done ? "✓" : ""}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.taskTitle,
+                { flex: 0 },
+                task.done && styles.taskTitleDone,
+              ]}
+            >
+              {task.title}
+            </Text>
+            <Text style={styles.taskMeta}>
+              {categoryLabel(task.category)} ·{" "}
+              {task.daily ? "Täglich" : "Einmalig"}
+              {task.reminder
+                ? ` · Erinnerung ${formatTime(task.reminder)}`
+                : ""}
+            </Text>
+            {streak && (
+              <Text style={styles.streak}>
+                Serie: {streak.current} {streak.current === 1 ? "Tag" : "Tage"}{" "}
+                · Rekord: {streak.best}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Einstellungen für ${task.title}`}
+          onPress={() => setEditingId(task.id)}
+          style={styles.delete}
+        >
+          <Text style={styles.deleteText}>⋯</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${task.title} löschen`}
+          onPress={() =>
+            setProgress((current) => removeProgressTask(current, task.id))
+          }
+          hitSlop={4}
+          style={styles.delete}
+        >
+          <Text style={styles.deleteText}>×</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <>
+      <TabPage active={active} keyboardShouldPersistTaps="handled">
+        <View style={styles.header}>
+          <Text style={styles.brand}>
+            My progress<Text style={styles.brandDot}>.</Text>
+          </Text>
+          <View style={styles.dayBadge}>
+            <Text style={styles.dayText}>DEIN TEMPO</Text>
+          </View>
+        </View>
+        <Text style={styles.date}>
+          {dayDate(today).toLocaleDateString("de-AT", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          })}
+        </Text>
+        <Text style={styles.heading}>Kleine Schritte.{"\n"}Ein guter Tag.</Text>
+        <Text style={styles.subtitle}>
+          Platz für alles, was du dir vornimmst.
+        </Text>
+        <View style={styles.progressCard}>
+          <View style={styles.progressTop}>
+            <View>
+              <Text style={styles.cardEyebrow}>DEIN FORTSCHRITT</Text>
+              <Text style={styles.progressTitle}>
+                {allTasks.length && completed === allTasks.length
+                  ? "Alles geschafft!"
+                  : "Jeder Haken zählt."}
+              </Text>
+            </View>
+            <Text style={styles.spark}>✳</Text>
+          </View>
+          <View
+            style={styles.progressTrack}
+            accessibilityRole="progressbar"
+            accessibilityLabel="Erledigte Aufgaben"
+            accessibilityValue={{
+              min: 0,
+              max: allTasks.length || 1,
+              now: completed,
+            }}
+          >
+            <View style={[styles.progressFill, { width: `${percent}%` }]} />
+          </View>
+          <View style={styles.progressBottom}>
+            <Text style={styles.progressCaption}>
+              {completed} von {allTasks.length} erledigt
+            </Text>
+            <Text style={styles.progressPercent}>{percent}%</Text>
+          </View>
+        </View>
+
+        <LoadingState store={store} />
+        {loaded && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Deine Aufgaben</Text>
+              <Text style={styles.count}>
+                {categoryFilter === "all"
+                  ? tasks.length
+                  : `${tasks.length} / ${allTasks.length}`}
+              </Text>
+            </View>
+            <View style={styles.inputBox}>
+              <TextInput
+                accessibilityLabel="Neue Aufgabe"
+                placeholder="Was möchtest du machen?"
+                placeholderTextColor="#7D867E"
+                style={styles.input}
+                value={title}
+                onChangeText={setTitle}
+                maxLength={100}
+                returnKeyType="done"
+                onSubmitEditing={() => add()}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Aufgabe hinzufügen"
+                disabled={!title.trim()}
+                onPress={() => add()}
+                style={[styles.addButton, !title.trim() && styles.disabled]}
+              >
+                <Text style={styles.addText}>+</Text>
+              </Pressable>
+            </View>
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityLabel="Neue Aufgaben täglich wiederholen"
+              accessibilityState={{ checked: daily }}
+              aria-checked={daily}
+              onPress={() => setDaily((value) => !value)}
+              style={styles.dailyChoice}
+            >
+              <View style={[styles.checkbox, daily && styles.checkboxDone]}>
+                <Text style={styles.check}>{daily ? "✓" : ""}</Text>
+              </View>
+              <Text style={styles.dailyLabel}>Täglich wiederholen</Text>
+            </Pressable>
+            <Text style={styles.categoryHeading}>
+              Kategorie für neue Aufgaben
+            </Text>
+            <CategoryPicker
+              value={category}
+              label="Neue Aufgabe – Kategorie"
+              onChange={(value) => {
+                if (value !== "all") setCategory(value);
+              }}
+            />
+            <View style={styles.ideas}>
+              {ideas.map((idea) => (
+                <Pressable
+                  key={idea}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${idea} hinzufügen`}
+                  onPress={() => add(idea)}
+                  style={styles.idea}
+                >
+                  <Text style={styles.ideaText}>+ {idea}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.categoryHeading}>Aufgaben filtern</Text>
+            <CategoryPicker
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              includeAll
+              label="Kategorie anzeigen"
+            />
+            {!tasks.length ? (
+              <View style={styles.empty}>
+                <View style={styles.emptyIcon}>
+                  <Text style={styles.emptyCheck}>✓</Text>
+                </View>
+                <Text style={styles.emptyTitle}>
+                  {allTasks.length
+                    ? "Hier ist noch Platz."
+                    : "Dein Tag, deine Pläne."}
+                </Text>
+                <Text style={styles.emptyText}>
+                  {allTasks.length
+                    ? "In dieser Kategorie gibt es noch keine Aufgaben. Wähle eine andere Kategorie oder lege eine neue Aufgabe an."
+                    : "Trage deine erste Aufgabe ein oder tippe auf einen Vorschlag."}
+                </Text>
+              </View>
+            ) : (
+              <>
+                {tasks.some((task) => !task.done) && (
+                  <View style={styles.group}>
+                    <Text style={styles.groupTitle}>NOCH VOR DIR</Text>
+                    {tasks.filter((task) => !task.done).map(row)}
+                  </View>
+                )}
+                {tasks.some((task) => task.done) && (
+                  <View style={styles.group}>
+                    <Text style={styles.groupTitle}>
+                      SCHON GESCHAFFT ·{" "}
+                      {tasks.filter((task) => task.done).length}
+                    </Text>
+                    {tasks.filter((task) => task.done).map(row)}
+                  </View>
+                )}
+              </>
+            )}
+          </>
+        )}
+        <StorageStatus store={store} />
+        <Text style={styles.footer}>
+          Du musst nicht alles auf einmal schaffen.
+        </Text>
+      </TabPage>
+      {editingTask && (
+        <TaskSettings
+          key={editingTask.id}
+          task={editingTask}
+          onClose={() => setEditingId(null)}
+          onSave={(settings) => {
+            setProgress((current) =>
+              configureTask(current, editingTask.id, settings),
+            );
+            setEditingId(null);
+          }}
+        />
+      )}
+    </>
+  );
+}
+const styles = StyleSheet.create({
+  categoryHeading: {
+    color: "#526747",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 12,
+  },
+  streak: {
+    color: "#3F6837",
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+    fontWeight: "600",
+  },
+  dailyChoice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 44,
+    marginTop: 10,
+  },
+  dailyLabel: { fontSize: 13, color: "#526747" },
+  taskMeta: { color: "#6D796C", fontSize: 11, lineHeight: 17, marginTop: 3 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 38,
+  },
+  brand: {
+    fontSize: 23,
+    fontWeight: "800",
+    color: "#203C30",
+    letterSpacing: -1,
+  },
+  brandDot: { color: "#6B9762" },
+  dayBadge: {
+    borderColor: "#D7DED0",
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  dayText: {
+    fontSize: 10,
+    letterSpacing: 1.4,
+    fontWeight: "700",
+    color: "#53674F",
+  },
+  date: { color: "#6D796C", fontSize: 13, marginBottom: 12 },
+  heading: {
+    color: "#203C30",
+    fontSize: 40,
+    fontWeight: "800",
+    lineHeight: 46,
+    letterSpacing: -1.5,
+  },
+  subtitle: {
+    color: "#6D796C",
+    fontSize: 15,
+    lineHeight: 23,
+    marginTop: 14,
+    marginBottom: 28,
+  },
+  progressCard: {
+    padding: 23,
+    borderRadius: 24,
+    backgroundColor: "#244F3D",
+    marginBottom: 32,
+  },
+  progressTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 8,
+  },
+  cardEyebrow: {
+    fontSize: 10,
+    color: "#C5D7B9",
+    fontWeight: "700",
+    letterSpacing: 1.8,
+  },
+  progressTitle: {
+    fontSize: 21,
+    fontWeight: "600",
+    color: "#F4F8EB",
+    marginTop: 8,
+  },
+  spark: { fontSize: 46, color: "#D4E8A8" },
+  progressTrack: {
+    height: 7,
+    borderRadius: 8,
+    backgroundColor: "#486B54",
+    marginTop: 23,
+    overflow: "hidden",
+  },
+  progressFill: { height: "100%", borderRadius: 8, backgroundColor: "#D4E8A8" },
+  progressBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  progressCaption: { color: "#DCE7D5", fontSize: 12 },
+  progressPercent: { color: "#D4E8A8", fontSize: 12, fontWeight: "700" },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 21,
+    fontWeight: "700",
+    color: "#203C30",
+    letterSpacing: -0.4,
+  },
+  count: {
+    backgroundColor: "#E9EEDF",
+    color: "#526747",
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    fontSize: 12,
+  },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 7,
+    paddingLeft: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#DCE2D4",
+    borderRadius: 17,
+  },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: "#203C30",
+  },
+  addButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: "#244F3D",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  disabled: { opacity: 0.45 },
+  addText: { fontSize: 30, lineHeight: 34, color: "#FFF", fontWeight: "400" },
+  ideas: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 28,
+  },
+  idea: {
+    backgroundColor: "#EDF0E6",
+    borderRadius: 20,
+    minHeight: 44,
+    paddingHorizontal: 13,
+    justifyContent: "center",
+  },
+  ideaText: { fontSize: 12, color: "#526747" },
+  group: { marginBottom: 22 },
+  groupTitle: {
+    color: "#7A8575",
+    fontSize: 10,
+    letterSpacing: 1.6,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  row: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E5E9DE",
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 9,
+    paddingRight: 4,
+  },
+  rowDone: { backgroundColor: "#EDF2E6", borderColor: "#E0E7D8" },
+  taskTouch: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 15,
+    gap: 13,
+    minHeight: 64,
+  },
+  checkbox: {
+    width: 25,
+    height: 25,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#C8D1C0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxDone: { backgroundColor: "#547D48", borderColor: "#547D48" },
+  check: { color: "#FFF", fontWeight: "700", fontSize: 17 },
+  taskTitle: { flex: 1, fontSize: 16, color: "#2D4032", lineHeight: 23 },
+  taskTitleDone: { textDecorationLine: "line-through", color: "#71806A" },
+  delete: {
+    minHeight: 48,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteText: { color: "#7B8775", fontSize: 25 },
+  empty: { alignItems: "center", paddingVertical: 30, paddingHorizontal: 14 },
+  emptyIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    backgroundColor: "#E8EFDA",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 17,
+  },
+  emptyCheck: { color: "#62804E", fontSize: 28 },
+  emptyTitle: {
+    color: "#334B38",
+    fontSize: 19,
+    fontWeight: "600",
+    marginBottom: 9,
+  },
+  emptyText: {
+    color: "#7A8575",
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 22,
+    maxWidth: 290,
+    marginTop: 8,
+  },
+  footer: {
+    textAlign: "center",
+    color: "#7D8777",
+    fontSize: 12,
+    marginTop: 32,
+    lineHeight: 18,
+  },
+});
