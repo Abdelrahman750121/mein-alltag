@@ -11,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { formatTime, makeReminder, Reminder, Task } from "./tasks";
+import { formatTime, reminderForSettings, Reminder, Task } from "./tasks";
 import { requestReminderPermission } from "./reminders";
 export default function TaskSettings({
   task,
@@ -19,9 +19,14 @@ export default function TaskSettings({
   onClose,
 }: {
   task: Task;
-  onSave(settings: { daily: boolean; reminder: Reminder | null }): void;
+  onSave(settings: {
+    title: string;
+    daily: boolean;
+    reminder: Reminder | null;
+  }): void;
   onClose(): void;
 }) {
+  const [name, setName] = useState(task.title);
   const [daily, setDaily] = useState(task.daily);
   const [enabled, setEnabled] = useState(task.reminder !== null);
   const [time, setTime] = useState(
@@ -34,9 +39,13 @@ export default function TaskSettings({
     setBusy(true);
     setError("");
     try {
-      let reminder: Reminder | null = null;
-      if (enabled) {
-        reminder = makeReminder(time, daily);
+      const title = name.trim();
+      if (!title || title.length > 100)
+        throw new Error(
+          "Bitte gib einen Aufgabennamen mit 1 bis 100 Zeichen ein.",
+        );
+      const reminder = reminderForSettings(task, enabled, time, daily);
+      if (reminder && reminder !== task.reminder) {
         if (task.done && !daily)
           throw new Error(
             "Öffne die erledigte Aufgabe zuerst wieder, bevor du eine einmalige Erinnerung einstellst.",
@@ -46,7 +55,7 @@ export default function TaskSettings({
             "Bitte erlaube Benachrichtigungen auf deinem iPhone. Du kannst sie in den Einstellungen für Expo Go bzw. My progress freigeben.",
           );
       }
-      onSave({ daily, reminder });
+      onSave({ title, daily, reminder });
     } catch (error) {
       setError(
         error instanceof Error
@@ -66,7 +75,19 @@ export default function TaskSettings({
         <View style={styles.card}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.eyebrow}>AUFGABEN-EINSTELLUNGEN</Text>
-            <Text style={styles.title}>{task.title}</Text>
+            <Text style={styles.title}>Aufgabe bearbeiten</Text>
+            <Text style={styles.label}>Name der Aufgabe</Text>
+            <TextInput
+              accessibilityLabel="Aufgabenname"
+              value={name}
+              onChangeText={setName}
+              maxLength={100}
+              autoCapitalize="sentences"
+              style={[styles.input, { marginTop: 10 }]}
+            />
+            <Text style={[styles.note, { marginBottom: 22 }]}>
+              Frühere Verlaufseinträge behalten ihren damaligen Namen.
+            </Text>
             <View style={styles.setting}>
               <View style={styles.copy}>
                 <Text style={styles.label}>Täglich wiederholen</Text>

@@ -26,3 +26,9 @@ Erinnerungen sind freiwillig. Die Berechtigung nur nach explizitem Aktivieren an
 Einmalige Erinnerungen beim Abhaken entfernen; tägliche bleiben nach einem Häkchen aktiv.
 Nur eigene geplante Benachrichtigungen mit dem Projektpräfix abgleichen und entfernen.
 Die Wochenübersicht zählt Erledigungen von Montag bis Sonntag.
+
+Serien: Aktuelle und längste aufgezeichnete Serie pro täglicher Aufgabe aus dem Verlauf ableiten.
+Wenn heute noch offen ist, darf gestern die aktuelle Serie tragen; nach einem ausgelassenen Tag unterbrechen.
+Umbenennen über die Aufgabeneinstellungen: stabile ID, vorhandenen Verlauf und Erinnerungszeit erhalten.
+Historische Titel sind unveränderliche Momentaufnahmen. Neue Erledigungen verwenden den neuen Titel.
+Keine erfundenen rückwirkenden Datumsangaben und keine Neuterminierung unveränderter einmaliger Erinnerungen beim Bearbeiten.

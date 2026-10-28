@@ -359,3 +359,184 @@ test("Wochenübersicht zählt Montag bis Sonntag und erhält gelöschte Aufgaben
   assert.equal(weekSummary(progress, "2026-10-25").total, 1);
   assert.equal(weekSummary(emptyProgress(), "2027-01-01").days.length, 7);
 });
+
+import { taskStreak, reminderForSettings } from "./tasks.ts";
+
+test("Serie beginnt beim ersten Häkchen und bleibt erhalten, solange heute noch offen ist", () => {
+  let progress = addProgressTask(emptyProgress(), "Lesen", "daily", true);
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-26"), {
+    current: 0,
+    best: 0,
+  });
+  for (const day of [26, 27, 28])
+    progress = toggleProgress(progress, "daily", new Date(2026, 9, day, 12));
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-28"), {
+    current: 3,
+    best: 3,
+  });
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-29"), {
+    current: 3,
+    best: 3,
+  });
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-30"), {
+    current: 0,
+    best: 3,
+  });
+  progress = toggleProgress(progress, "daily", new Date(2026, 9, 30, 12));
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-30"), {
+    current: 1,
+    best: 3,
+  });
+});
+
+test("Häkchen zurücknehmen korrigiert die Serie; andere Aufgaben zählen nicht mit", () => {
+  let progress = addProgressTask(emptyProgress(), "Lesen", "daily", true);
+  progress = addProgressTask(progress, "Laufen", "run", true);
+  for (const day of [26, 27, 28])
+    progress = toggleProgress(progress, "daily", new Date(2026, 9, day, 12));
+  progress = toggleProgress(progress, "run", new Date(2026, 9, 29, 12));
+  progress = toggleProgress(progress, "daily", new Date(2026, 9, 28, 13));
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-28"), {
+    current: 2,
+    best: 2,
+  });
+  assert.deepEqual(taskStreak(progress, "missing", "2026-10-28"), {
+    current: 0,
+    best: 0,
+  });
+});
+
+test("Serien ignorieren zukünftige Einträge und zählen Kalendertage über Sommerzeit- und Jahresgrenzen", () => {
+  let progress = addProgressTask(emptyProgress(), "Lesen", "daily", true);
+  for (const date of [
+    new Date(2026, 9, 24, 12),
+    new Date(2026, 9, 25, 12),
+    new Date(2026, 9, 26, 12),
+    new Date(2026, 9, 27, 12),
+  ])
+    progress = toggleProgress(progress, "daily", date);
+  assert.deepEqual(taskStreak(progress, "daily", "2026-10-26"), {
+    current: 3,
+    best: 3,
+  });
+  progress = addProgressTask(progress, "Laufen", "year", true);
+  for (const date of [new Date(2026, 11, 31, 12), new Date(2027, 0, 1, 12)])
+    progress = toggleProgress(progress, "year", date);
+  assert.deepEqual(taskStreak(progress, "year", "2027-01-01"), {
+    current: 2,
+    best: 2,
+  });
+});
+
+test("Umbenennen erhält Identität, Status, Erinnerung und historische Titel", () => {
+  let progress = addProgressTask(emptyProgress(), "Buch lesen", "daily", true);
+  const reminder = makeReminder("18:00", true);
+  progress = configureTask(
+    progress,
+    "daily",
+    { daily: true, reminder },
+    monday(),
+  );
+  progress = toggleProgress(progress, "daily", monday());
+  const before = progress;
+  progress = configureTask(
+    progress,
+    "daily",
+    { title: "  20 Minuten lesen  ", daily: true, reminder },
+    tuesday(),
+  );
+  assert.equal(progress.tasks[0].id, "daily");
+  assert.equal(progress.tasks[0].title, "20 Minuten lesen");
+  assert.strictEqual(progress.tasks[0].reminder, reminder);
+  assert.strictEqual(progress.history, before.history);
+  assert.equal(progress.history[0].title, "Buch lesen");
+  assert.equal(before.tasks[0].title, "Buch lesen");
+  progress = toggleProgress(progress, "daily", tuesday());
+  assert.deepEqual(
+    progress.history.map((entry) => entry.title),
+    ["Buch lesen", "20 Minuten lesen"],
+  );
+  assert.deepEqual(
+    taskStreak(decodeProgress(JSON.stringify(progress)), "daily", "2026-10-27"),
+    { current: 2, best: 2 },
+  );
+});
+
+test("Ungültige Namen werden beim Bearbeiten abgewiesen; erledigte Aufgaben bleiben erledigt", () => {
+  const progress = toggleProgress(withTask(), "book", monday());
+  for (const title of ["", "   ", "x".repeat(101)])
+    assert.throws(() =>
+      configureTask(
+        progress,
+        "book",
+        { title, daily: false, reminder: null },
+        tuesday(),
+      ),
+    );
+  const renamed = configureTask(
+    progress,
+    "book",
+    { title: "Neuer Name", daily: false, reminder: null },
+    tuesday(),
+  );
+  assert.equal(renamed.tasks[0].done, true);
+  assert.equal(renamed.history[0].title, "Buch lesen");
+  assert.strictEqual(
+    configureTask(progress, "missing", {
+      title: "Name",
+      daily: false,
+      reminder: null,
+    }),
+    progress,
+  );
+});
+
+test("Bloßes Bearbeiten verschiebt keine einmalige Erinnerung, auch wenn sie abgelaufen ist", () => {
+  const reminder = makeReminder("09:00", false, tuesday());
+  const progress = configureTask(
+    withTask(),
+    "book",
+    { daily: false, reminder },
+    tuesday(),
+  );
+  const task = progress.tasks[0];
+  const later = new Date(2026, 9, 27, 10);
+  const preserved = reminderForSettings(task, true, "09:00", false, later);
+  assert.strictEqual(preserved, reminder);
+  const renamed = configureTask(
+    progress,
+    "book",
+    { title: "Lesen", daily: false, reminder: preserved },
+    later,
+  );
+  assert.equal(buildReminderPlans(renamed, later).length, 0);
+  assert.equal(reminderForSettings(task, false, "invalid", false, later), null);
+  assert.throws(() => reminderForSettings(task, true, "25:00", false, later));
+  const changed = reminderForSettings(task, true, "11:00", false, later);
+  assert.equal(new Date(changed.at).getDate(), 27);
+  assert.equal(new Date(changed.at).getHours(), 11);
+});
+
+test("Aktive Erinnerung bekommt den neuen Namen, aber behält Termin und Kennung", () => {
+  const reminder = makeReminder("18:00", true);
+  const progress = configureTask(withTask(), "book", { daily: true, reminder });
+  const original = buildReminderPlans(progress, tuesday());
+  const renamed = configureTask(progress, "book", {
+    title: "20 Minuten lesen",
+    daily: true,
+    reminder,
+  });
+  const changed = buildReminderPlans(renamed, tuesday());
+  assert.equal(changed[0].identifier, original[0].identifier);
+  assert.deepEqual(changed[0].trigger, original[0].trigger);
+  assert.equal(changed[0].title, "20 Minuten lesen");
+  const diff = diffReminderPlans(
+    changed,
+    original.map((plan) => ({
+      identifier: plan.identifier,
+      signature: plan.signature,
+    })),
+  );
+  assert.deepEqual(diff.cancel, [original[0].identifier]);
+  assert.equal(diff.schedule.length, 1);
+});

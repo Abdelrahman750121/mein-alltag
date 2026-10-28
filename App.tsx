@@ -20,6 +20,7 @@ import {
   configureTask,
   isTaskDone,
   formatTime,
+  taskStreak,
   readProgress,
   removeProgressTask,
   emptyProgress,
@@ -124,6 +125,7 @@ function TasksScreen() {
     ? Math.round((completed / tasks.length) * 100)
     : 0;
   function row(task: Task) {
+    const streak = task.daily ? taskStreak(progress, task.id, today) : null;
     return (
       <View key={task.id} style={[styles.row, task.done && styles.rowDone]}>
         <Pressable
@@ -155,6 +157,12 @@ function TasksScreen() {
                 ? ` · Erinnerung ${formatTime(task.reminder)}`
                 : ""}
             </Text>
+            {streak && (
+              <Text style={styles.streak}>
+                Serie: {streak.current} {streak.current === 1 ? "Tag" : "Tage"}{" "}
+                · Rekord: {streak.best}
+              </Text>
+            )}
           </View>
         </Pressable>
         <Pressable
@@ -419,6 +427,13 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  streak: {
+    color: "#3F6837",
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 4,
+    fontWeight: "600",
+  },
   dailyChoice: {
     flexDirection: "row",
     alignItems: "center",

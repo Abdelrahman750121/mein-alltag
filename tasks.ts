@@ -146,15 +146,22 @@ export function makeReminder(
 export function configureTask(
   progress: Progress,
   id: string,
-  settings: { daily: boolean; reminder: Reminder | null },
+  settings: { title?: string; daily: boolean; reminder: Reminder | null },
   now = new Date(),
 ): Progress {
+  if (!progress.tasks.some((task) => task.id === id)) return progress;
+  const title =
+    settings.title === undefined ? undefined : settings.title.trim();
+  if (title !== undefined && (!title || title.length > 100))
+    throw new Error("Bitte gib einen Aufgabennamen mit 1 bis 100 Zeichen ein.");
   const tasks = progress.tasks.map((task) =>
     task.id === id
       ? {
           ...task,
           done: isTaskDone(progress, task, localDay(now)),
-          ...settings,
+          daily: settings.daily,
+          reminder: settings.reminder,
+          ...(title !== undefined ? { title } : {}),
         }
       : task,
   );
@@ -285,4 +292,56 @@ export async function readProgress(storage: {
   const history = await storage.getItem(HISTORY_STORAGE_KEY);
   if (history !== null) return decodeProgress(history);
   return decodeProgress(null, await storage.getItem(LEGACY_STORAGE_KEY));
+}
+
+export function taskStreak(
+  progress: Progress,
+  taskId: string,
+  today = localDay(),
+) {
+  const days = [
+    ...new Set(
+      progress.history
+        .filter((entry) => entry.taskId === taskId && entry.day <= today)
+        .map((entry) => entry.day),
+    ),
+  ].sort();
+  const completed = new Set(days);
+  // Today stays open until midnight: yesterday's streak remains active until then.
+  let cursor = completed.has(today) ? today : shiftDay(today, -1);
+  let current = 0;
+  while (completed.has(cursor)) {
+    current++;
+    cursor = shiftDay(cursor, -1);
+  }
+  let best = 0,
+    run = 0,
+    previous: string | null = null;
+  for (const day of days) {
+    run = previous !== null && day === shiftDay(previous, 1) ? run + 1 : 1;
+    best = Math.max(best, run);
+    previous = day;
+  }
+  return { current, best };
+}
+
+export function reminderForSettings(
+  task: Task,
+  enabled: boolean,
+  text: string,
+  daily: boolean,
+  now = new Date(),
+): Reminder | null {
+  if (!enabled) return null;
+  const time = parseReminderTime(text);
+  if (!time)
+    throw new Error("Bitte eine gültige Uhrzeit eingeben, zum Beispiel 18:00.");
+  if (
+    task.reminder &&
+    task.daily === daily &&
+    task.reminder.hour === time.hour &&
+    task.reminder.minute === time.minute
+  )
+    return task.reminder;
+  return makeReminder(text, daily, now);
 }

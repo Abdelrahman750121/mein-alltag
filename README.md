@@ -38,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- 21 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungsplanung und Wochenübersicht.
+- 28 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungsplanung, Wochenübersicht, Serien und Bearbeiten.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -96,3 +96,20 @@ nativen App ein. Kein Push-Token, Server oder externer Benachrichtigungsdienst w
 
 Speicher-Version 3 übernimmt Version 2 einschließlich Verlauf und fällt bei beschädigten
 neuen Daten nicht still auf eine alte Version zurück. Alte Speicher bleiben als Migrationsquelle erhalten.
+
+## Serien und Aufgaben bearbeiten
+Tägliche Aufgaben zeigen „Serie“ (aktuell) und „Rekord“ (längste aufgezeichnete Folge).
+Gezählt werden aufeinanderfolgende lokale Kalendertage mit einem gespeicherten Häkchen.
+Solange heute noch offen ist, bleibt eine bis gestern laufende Serie aktiv. Nach einem
+ausgelassenen Tag beginnt die nächste Erledigung wieder bei 1. Zukünftige Einträge und
+Häkchen ohne bekanntes Datum werden nicht gezählt. Das Zurücknehmen eines Häkchens
+korrigiert auch die aus dem Verlauf berechnete Serie und den Rekord.
+
+Über ⋯ → Aufgabe bearbeiten kann der Name geändert werden (1 bis 100 Zeichen).
+Aufgaben-ID, Verlauf und Serie bleiben erhalten. Historische Einträge behalten den Namen
+zum Zeitpunkt der jeweiligen Erledigung; neue Häkchen verwenden den neuen Namen.
+Eine unveränderte Erinnerungszeit wird beim Umbenennen nicht neu terminiert; aktive
+Erinnerungen erhalten den neuen Aufgabentext. Die vorhandene Speicher-Version 3 bleibt kompatibel.
+
+Validierung dieses Schritts: 28 Tests, TypeScript-Prüfung, Web-Export und iOS-Hermes-Bundle erfolgreich.
+Der Expo-Server war für eine zusätzliche Browser-Bedienprüfung dieses Schritts nicht erreichbar.
