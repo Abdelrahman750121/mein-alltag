@@ -194,7 +194,7 @@ test("Einmalige Aufgaben bleiben erledigt; Wechsel von täglich zu einmalig beh�
   assert.equal(daily.history.length, 1);
 });
 
-test("Version 2 wird mit Verlauf und einmaligen Aufgaben in Version 3 übernommen", async () => {
+test("Version 2 wird mit Verlauf und einmaligen Aufgaben in Version 4 übernommen", async () => {
   const previous = JSON.stringify({
     version: 2,
     tasks: [{ id: "old", title: "Kochen", done: true }],
@@ -210,7 +210,7 @@ test("Version 2 wird mit Verlauf und einmaligen Aufgaben in Version 3 übernomme
   const migrated = await readProgress({
     getItem: async (key) => (key === HISTORY_STORAGE_KEY ? previous : null),
   });
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.tasks[0].daily, false);
   assert.equal(migrated.tasks[0].reminder, null);
   assert.equal(migrated.tasks[0].done, true);
@@ -539,4 +539,289 @@ test("Aktive Erinnerung bekommt den neuen Namen, aber behält Termin und Kennung
   );
   assert.deepEqual(diff.cancel, [original[0].identifier]);
   assert.equal(diff.schedule.length, 1);
+});
+
+import { filterTasks, categoryLabel, PREVIOUS_STORAGE_KEY } from "./tasks.ts";
+import {
+  createBackup,
+  parseBackup,
+  prepareRestoration,
+  persistRestoration,
+  MAX_BACKUP_BYTES,
+  PRE_RESTORE_KEY,
+  assertBackupSize,
+  backupFilename,
+} from "./backup.ts";
+
+test("Kategorien ordnen Aufgaben, ohne die vollständige Liste zu verändern", () => {
+  let progress = addProgressTask(
+    emptyProgress(),
+    "Laufen",
+    "run",
+    true,
+    "sport",
+  );
+  progress = addProgressTask(progress, "Kochen", "cook", false, "household");
+  progress = addProgressTask(progress, "Spielen", "play", false, "leisure");
+  progress = addProgressTask(progress, "Notiz", "note");
+  assert.equal(filterTasks(progress.tasks, "all").length, 4);
+  assert.deepEqual(
+    filterTasks(progress.tasks, "sport").map((task) => task.title),
+    ["Laufen"],
+  );
+  assert.equal(filterTasks(progress.tasks, "none")[0].id, "note");
+  assert.equal(categoryLabel("household"), "Haushalt");
+  assert.equal(progress.tasks.length, 4);
+});
+
+test("Kategorie ändern erhält Identität, Serie, Verlauf und Erinnerungszeit", () => {
+  let progress = addProgressTask(
+    emptyProgress(),
+    "Lesen",
+    "book",
+    true,
+    "none",
+  );
+  const reminder = makeReminder("18:00", true);
+  progress = configureTask(
+    progress,
+    "book",
+    { daily: true, reminder },
+    monday(),
+  );
+  progress = toggleProgress(progress, "book", monday());
+  const changed = configureTask(
+    progress,
+    "book",
+    { category: "leisure", daily: true, reminder },
+    tuesday(),
+  );
+  assert.equal(changed.tasks[0].category, "leisure");
+  assert.equal(changed.tasks[0].id, "book");
+  assert.strictEqual(changed.tasks[0].reminder, reminder);
+  assert.strictEqual(changed.history, progress.history);
+  assert.deepEqual(taskStreak(changed, "book", "2026-10-27"), {
+    current: 1,
+    best: 1,
+  });
+  assert.equal(progress.tasks[0].category, "none");
+});
+
+test("Version 3 wird ohne Datenverlust und mit Ohne-Kategorie übernommen", async () => {
+  const old = JSON.stringify({
+    version: 3,
+    tasks: [
+      { id: "old", title: "Kochen", done: true, daily: false, reminder: null },
+    ],
+    history: [
+      {
+        taskId: "old",
+        title: "Kochen",
+        day: "2026-10-26",
+        completedAt: monday().toISOString(),
+      },
+    ],
+  });
+  const progress = await readProgress({
+    getItem: async (key) => (key === PREVIOUS_STORAGE_KEY ? old : null),
+  });
+  assert.equal(progress.version, 4);
+  assert.equal(progress.tasks[0].category, "none");
+  assert.equal(progress.tasks[0].done, true);
+  assert.equal(progress.history.length, 1);
+  await assert.rejects(
+    readProgress({
+      getItem: async (key) => (key === STORAGE_KEY ? "broken" : old),
+    }),
+  );
+});
+
+test("Unbekannte Kategorien werden abgewiesen", () => {
+  assert.throws(() =>
+    addProgressTask(emptyProgress(), "Test", "test", false, "unknown"),
+  );
+  assert.throws(() =>
+    configureTask(withTask(), "book", {
+      daily: false,
+      reminder: null,
+      category: "unknown",
+    }),
+  );
+  const progress = withTask();
+  assert.throws(() =>
+    decodeProgress(
+      JSON.stringify({
+        ...progress,
+        tasks: [{ ...progress.tasks[0], category: "unknown" }],
+      }),
+    ),
+  );
+});
+
+function backupProgress() {
+  let progress = addProgressTask(
+    emptyProgress(),
+    "Lesen 📚",
+    "book",
+    true,
+    "leisure",
+  );
+  progress = configureTask(progress, "book", {
+    daily: true,
+    reminder: makeReminder("18:00", true),
+  });
+  progress = toggleProgress(progress, "book", monday());
+  progress = addProgressTask(
+    progress,
+    "Gelöschte Aufgabe",
+    "deleted",
+    false,
+    "household",
+  );
+  progress = toggleProgress(progress, "deleted", tuesday());
+  return removeProgressTask(progress, "deleted");
+}
+
+test("Sicherung erhält Aufgaben, Kategorien, Erinnerungen, Serien und Verlauf gelöschter Aufgaben", () => {
+  const progress = backupProgress();
+  const now = new Date("2026-10-28T12:00:00.000Z");
+  const parsed = parseBackup(createBackup(progress, now));
+  assert.deepEqual(parsed.progress, progress);
+  assert.equal(parsed.exportedAt, now.toISOString());
+  assert.equal(
+    parsed.progress.history.find((entry) => entry.taskId === "deleted").title,
+    "Gelöschte Aufgabe",
+  );
+  assert.deepEqual(taskStreak(parsed.progress, "book", "2026-10-27"), {
+    current: 1,
+    best: 1,
+  });
+  assert.match(backupFilename(now), /^my-progress-sicherung-.*\.json$/);
+  assert.doesNotMatch(backupFilename(now), /:/);
+});
+
+test("Leere Sicherung und Sicherungen mit älterem Speicherformat sind lesbar", () => {
+  assert.deepEqual(
+    parseBackup(createBackup(emptyProgress())).progress,
+    emptyProgress(),
+  );
+  const value = JSON.parse(createBackup(emptyProgress()));
+  value.progress = {
+    version: 3,
+    tasks: [{ id: "old", title: "Alt", done: false }],
+    history: [],
+  };
+  assert.equal(
+    parseBackup(JSON.stringify(value)).progress.tasks[0].category,
+    "none",
+  );
+  assert.deepEqual(
+    parseBackup("\uFEFF" + createBackup(emptyProgress())).progress,
+    emptyProgress(),
+  );
+});
+
+test("Fremde, beschädigte und nicht unterstützte Sicherungen werden vor der Wiederherstellung erkannt", () => {
+  const valid = JSON.parse(createBackup(backupProgress()));
+  for (const text of [
+    "bad",
+    "[]",
+    "null",
+    "{}",
+    JSON.stringify({ ...valid, app: "other" }),
+    JSON.stringify({ ...valid, backupVersion: 99 }),
+    JSON.stringify({ ...valid, exportedAt: "invalid" }),
+    JSON.stringify({ ...valid, progress: { ...valid.progress, version: 99 } }),
+    JSON.stringify({
+      ...valid,
+      progress: {
+        ...valid.progress,
+        tasks: [...valid.progress.tasks, ...valid.progress.tasks],
+      },
+    }),
+    JSON.stringify({
+      ...valid,
+      progress: {
+        ...valid.progress,
+        tasks: [{ ...valid.progress.tasks[0], category: "unknown" }],
+      },
+    }),
+  ])
+    assert.throws(() => parseBackup(text));
+});
+
+test("Dateigröße wird in UTF-8 begrenzt; die Datei wird nie still gekürzt", () => {
+  assert.throws(
+    () => assertBackupSize("x".repeat(MAX_BACKUP_BYTES + 1)),
+    /zu groß/,
+  );
+  assert.throws(
+    () => assertBackupSize("€".repeat(Math.floor(MAX_BACKUP_BYTES / 3) + 1)),
+    /zu groß/,
+  );
+  assert.doesNotThrow(() => assertBackupSize("kleine Sicherung 📚"));
+});
+
+test("Wiederherstellung schaltet Erinnerungen standardmäßig aus und erhält sie nur auf Wunsch", () => {
+  const original = backupProgress();
+  const disabled = prepareRestoration(original);
+  assert.equal(disabled.tasks[0].reminder, null);
+  assert.notEqual(original.tasks[0].reminder, null);
+  assert.deepEqual(disabled.history, original.history);
+  assert.equal(disabled.tasks[0].category, "leisure");
+  assert.deepEqual(prepareRestoration(original, true), original);
+  assert.notStrictEqual(prepareRestoration(original, true), original);
+});
+
+test("Wiederherstellung ersetzt den Stand und bewahrt vorher die letzte gespeicherte Version auf", async () => {
+  const previous = JSON.stringify(withTask());
+  const values = new Map([[STORAGE_KEY, previous]]);
+  const writes = [];
+  const storage = {
+    getItem: async (key) => values.get(key) ?? null,
+    setItem: async (key, value) => {
+      writes.push(key);
+      values.set(key, value);
+    },
+  };
+  const restored = await persistRestoration(storage, emptyProgress());
+  assert.deepEqual(restored, emptyProgress());
+  assert.deepEqual(writes, [PRE_RESTORE_KEY, STORAGE_KEY]);
+  assert.equal(values.get(PRE_RESTORE_KEY), previous);
+  assert.deepEqual(decodeProgress(values.get(STORAGE_KEY)), emptyProgress());
+});
+
+test("Ein fehlgeschlagener Vorbereitungsschritt überschreibt keine vorhandenen Daten", async () => {
+  const previous = JSON.stringify(withTask());
+  const writes = [];
+  const storage = {
+    getItem: async () => previous,
+    setItem: async (key) => {
+      writes.push(key);
+      throw new Error("disk full");
+    },
+  };
+  await assert.rejects(
+    persistRestoration(storage, emptyProgress()),
+    /disk full/,
+  );
+  assert.deepEqual(writes, [PRE_RESTORE_KEY]);
+});
+
+test("Fehler beim Speichern werden gemeldet und der vorherige gespeicherte Stand bleibt als Kopie erhalten", async () => {
+  const previous = JSON.stringify(withTask());
+  const values = new Map([[STORAGE_KEY, previous]]);
+  const storage = {
+    getItem: async (key) => values.get(key) ?? null,
+    setItem: async (key, value) => {
+      if (key === STORAGE_KEY) throw new Error("write failed");
+      values.set(key, value);
+    },
+  };
+  await assert.rejects(
+    persistRestoration(storage, backupProgress()),
+    /write failed/,
+  );
+  assert.equal(values.get(STORAGE_KEY), previous);
+  assert.equal(values.get(PRE_RESTORE_KEY), previous);
 });

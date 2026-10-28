@@ -11,8 +11,15 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { formatTime, reminderForSettings, Reminder, Task } from "./tasks";
+import {
+  formatTime,
+  reminderForSettings,
+  Reminder,
+  Task,
+  Category,
+} from "./tasks";
 import { requestReminderPermission } from "./reminders";
+import CategoryPicker from "./CategoryPicker";
 export default function TaskSettings({
   task,
   onSave,
@@ -21,12 +28,14 @@ export default function TaskSettings({
   task: Task;
   onSave(settings: {
     title: string;
+    category: Category;
     daily: boolean;
     reminder: Reminder | null;
   }): void;
   onClose(): void;
 }) {
   const [name, setName] = useState(task.title);
+  const [category, setCategory] = useState<Category>(task.category);
   const [daily, setDaily] = useState(task.daily);
   const [enabled, setEnabled] = useState(task.reminder !== null);
   const [time, setTime] = useState(
@@ -55,7 +64,7 @@ export default function TaskSettings({
             "Bitte erlaube Benachrichtigungen auf deinem iPhone. Du kannst sie in den Einstellungen für Expo Go bzw. My progress freigeben.",
           );
       }
-      onSave({ title, daily, reminder });
+      onSave({ title, category, daily, reminder });
     } catch (error) {
       setError(
         error instanceof Error
@@ -88,6 +97,14 @@ export default function TaskSettings({
             <Text style={[styles.note, { marginBottom: 22 }]}>
               Frühere Verlaufseinträge behalten ihren damaligen Namen.
             </Text>
+            <Text style={styles.label}>Kategorie</Text>
+            <CategoryPicker
+              value={category}
+              label="Aufgabe bearbeiten – Kategorie"
+              onChange={(value) => {
+                if (value !== "all") setCategory(value);
+              }}
+            />
             <View style={styles.setting}>
               <View style={styles.copy}>
                 <Text style={styles.label}>Täglich wiederholen</Text>

@@ -1,9 +1,32 @@
+export const CATEGORY_OPTIONS = [
+  { value: "none", label: "Ohne Kategorie" },
+  { value: "sport", label: "Sport" },
+  { value: "household", label: "Haushalt" },
+  { value: "leisure", label: "Freizeit" },
+] as const;
+export type Category = (typeof CATEGORY_OPTIONS)[number]["value"];
+export type CategoryFilter = Category | "all";
+export function isCategory(value: unknown): value is Category {
+  return CATEGORY_OPTIONS.some((option) => option.value === value);
+}
+export function categoryLabel(category: Category): string {
+  return (
+    CATEGORY_OPTIONS.find((option) => option.value === category)?.label ??
+    "Ohne Kategorie"
+  );
+}
+export function filterTasks(tasks: Task[], category: CategoryFilter): Task[] {
+  return category === "all"
+    ? tasks
+    : tasks.filter((task) => task.category === category);
+}
 export type Reminder = { hour: number; minute: number; at: string | null };
 export type Task = {
   id: string;
   title: string;
   done: boolean;
   daily: boolean;
+  category: Category;
   reminder: Reminder | null;
 };
 export type Completion = {
@@ -12,12 +35,13 @@ export type Completion = {
   day: string;
   completedAt: string;
 };
-export type Progress = { version: 3; tasks: Task[]; history: Completion[] };
+export type Progress = { version: 4; tasks: Task[]; history: Completion[] };
 export const LEGACY_STORAGE_KEY = "mein-alltag.tasks.v1";
 export const HISTORY_STORAGE_KEY = "mein-alltag.progress.v2";
-export const STORAGE_KEY = "mein-alltag.progress.v3";
+export const PREVIOUS_STORAGE_KEY = "mein-alltag.progress.v3";
+export const STORAGE_KEY = "mein-alltag.progress.v4";
 export function emptyProgress(): Progress {
-  return { version: 3, tasks: [], history: [] };
+  return { version: 4, tasks: [], history: [] };
 }
 export function localDay(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -60,10 +84,15 @@ export function addTask(
   title: string,
   id: string,
   daily = false,
+  category: Category = "none",
 ): Task[] {
+  if (!isCategory(category)) throw new Error("Unbekannte Kategorie.");
   const clean = title.trim();
   return clean && clean.length <= 100
-    ? [...tasks, { id, title: clean, done: false, daily, reminder: null }]
+    ? [
+        ...tasks,
+        { id, title: clean, done: false, daily, category, reminder: null },
+      ]
     : tasks;
 }
 export function toggleTask(tasks: Task[], id: string): Task[] {
@@ -79,8 +108,12 @@ export function addProgressTask(
   title: string,
   id: string,
   daily = false,
+  category: Category = "none",
 ): Progress {
-  return { ...progress, tasks: addTask(progress.tasks, title, id, daily) };
+  return {
+    ...progress,
+    tasks: addTask(progress.tasks, title, id, daily, category),
+  };
 }
 export function toggleProgress(
   progress: Progress,
@@ -146,10 +179,17 @@ export function makeReminder(
 export function configureTask(
   progress: Progress,
   id: string,
-  settings: { title?: string; daily: boolean; reminder: Reminder | null },
+  settings: {
+    title?: string;
+    category?: Category;
+    daily: boolean;
+    reminder: Reminder | null;
+  },
   now = new Date(),
 ): Progress {
   if (!progress.tasks.some((task) => task.id === id)) return progress;
+  if (settings.category !== undefined && !isCategory(settings.category))
+    throw new Error("Unbekannte Kategorie.");
   const title =
     settings.title === undefined ? undefined : settings.title.trim();
   if (title !== undefined && (!title || title.length > 100))
@@ -161,6 +201,9 @@ export function configureTask(
           done: isTaskDone(progress, task, localDay(now)),
           daily: settings.daily,
           reminder: settings.reminder,
+          ...(settings.category !== undefined
+            ? { category: settings.category }
+            : {}),
           ...(title !== undefined ? { title } : {}),
         }
       : task,
@@ -217,7 +260,8 @@ export function decodeTasks(raw: string | null): Task[] {
       !task.title.trim() ||
       task.title.length > 100 ||
       typeof task.done !== "boolean" ||
-      (task.daily !== undefined && typeof task.daily !== "boolean")
+      (task.daily !== undefined && typeof task.daily !== "boolean") ||
+      (task.category !== undefined && !isCategory(task.category))
     )
       throw new Error("Invalid task data");
     ids.add(task.id);
@@ -227,6 +271,7 @@ export function decodeTasks(raw: string | null): Task[] {
       title: task.title,
       done: task.done,
       daily,
+      category: task.category ?? "none",
       reminder: decodeReminder(task.reminder, daily),
     };
   });
@@ -248,7 +293,7 @@ export function decodeProgress(
     !value ||
     typeof value !== "object" ||
     !("version" in value) ||
-    (value.version !== 2 && value.version !== 3) ||
+    (value.version !== 2 && value.version !== 3 && value.version !== 4) ||
     !("tasks" in value) ||
     !("history" in value) ||
     !Array.isArray(value.history)
@@ -274,7 +319,7 @@ export function decodeProgress(
     entries.add(key);
   }
   return {
-    version: 3,
+    version: 4,
     tasks,
     history: value.history.map(({ taskId, title, day, completedAt }) => ({
       taskId,
@@ -289,6 +334,8 @@ export async function readProgress(storage: {
 }): Promise<Progress> {
   const current = await storage.getItem(STORAGE_KEY);
   if (current !== null) return decodeProgress(current);
+  const previous = await storage.getItem(PREVIOUS_STORAGE_KEY);
+  if (previous !== null) return decodeProgress(previous);
   const history = await storage.getItem(HISTORY_STORAGE_KEY);
   if (history !== null) return decodeProgress(history);
   return decodeProgress(null, await storage.getItem(LEGACY_STORAGE_KEY));

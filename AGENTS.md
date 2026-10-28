@@ -32,3 +32,11 @@ Wenn heute noch offen ist, darf gestern die aktuelle Serie tragen; nach einem au
 Umbenennen über die Aufgabeneinstellungen: stabile ID, vorhandenen Verlauf und Erinnerungszeit erhalten.
 Historische Titel sind unveränderliche Momentaufnahmen. Neue Erledigungen verwenden den neuen Titel.
 Keine erfundenen rückwirkenden Datumsangaben und keine Neuterminierung unveränderter einmaliger Erinnerungen beim Bearbeiten.
+
+Kategorien: Ohne Kategorie, Sport, Haushalt und Freizeit. Aufgabenliste filtern; Statistik und Verlauf bleiben global vollständig.
+Speicher-Version 4 übernimmt Version 3/2/1 ohne erfundene Kategorien. Unbekannte Kategorien ablehnen.
+Datensicherung als My-progress-JSON mit Formatkennung, Version und Exportdatum, maximal 5 MiB.
+Vor Import vollständig validieren, Aufgabenzahl anzeigen und ausdrücklich bestätigen lassen, bevor Daten ersetzt werden.
+Erinnerungen beim Wiederherstellen standardmäßig deaktivieren; Übernahme nur auf Nutzerwunsch und mit Berechtigung.
+Wiederherstellung erst nach erfolgreichem Speichern in der Oberfläche übernehmen. Alte wartende Schreibvorgänge dürfen sie nicht überschreiben.
+Persönliche Backup-Dateien nicht in Git oder Quellcode-Archive aufnehmen. Native Dateimenüs nur als getestet bezeichnen, wenn wirklich am Gerät geprüft.

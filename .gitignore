@@ -45,3 +45,7 @@ yarn-error.*
 !.env.example
 
 /assets/
+
+# Personal backup exports
+my-progress-sicherung-*.json
+

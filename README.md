@@ -38,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- 28 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungsplanung, Wochenübersicht, Serien und Bearbeiten.
+- 40 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungen, Statistiken, Serien, Bearbeiten, Kategorien und Datensicherung.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -50,7 +50,7 @@ nicht vorgenommen. Vor einer Veröffentlichung die aktuelle Expo-Version erneut 
 
 
 ## Upgrade auf SDK 58
-Expo ist auf ~58.0.0 eingestellt (installierter Patch: 58.0.19).
+Expo ist auf ~58.0.0 eingestellt (installierter Patch: 58.0.20).
 Die zugehörigen Pakete wurden mit expo install --fix abgeglichen:
 React 19.3.0, React Native 0.88.0 sowie passende Status-Bar-, Safe-Area- und React-Typen.
 Validiert: vier Funktionstests, TypeScript, Web-Export, iOS-Hermes-Bundle und
@@ -113,3 +113,42 @@ Erinnerungen erhalten den neuen Aufgabentext. Die vorhandene Speicher-Version 3 
 
 Validierung dieses Schritts: 28 Tests, TypeScript-Prüfung, Web-Export und iOS-Hermes-Bundle erfolgreich.
 Der Expo-Server war für eine zusätzliche Browser-Bedienprüfung dieses Schritts nicht erreichbar.
+
+## Kategorien
+Beim Anlegen und Bearbeiten kann Ohne Kategorie, Sport, Haushalt oder Freizeit gewählt werden.
+Bestehende Aufgaben bekommen bei der Migration Ohne Kategorie. Mit „Aufgaben filtern“ werden
+passende Aufgaben angezeigt; Fortschrittsanzeige, Wochenübersicht und Verlauf bleiben vollständig.
+Eine Kategorieänderung verändert weder Aufgaben-ID noch Serie, Verlauf oder Erinnerungszeit.
+
+## Datensicherung
+Unter „Deine Datensicherung“:
+1. „Sicherung exportieren“ erzeugt eine JSON-Datei mit allen Aufgaben, Kategorien, Erinnerungseinstellungen und dem vollständigen Verlauf, einschließlich gelöschter Aufgaben im Verlauf.
+2. Auf dem iPhone im Teilen-Menü „In Dateien sichern“ auswählen. Im Browser wird ein Download angefordert. Die App kann nicht feststellen, ob das Teilen-Menü ohne Speichern geschlossen wurde.
+3. „Sicherung laden“ öffnet die Dateiauswahl. Die App prüft Format, Größe, Version und Daten.
+4. Die Vorschau zeigt Aufgaben- und Erledigungszahlen. Erst „Daten ersetzen“ bestätigt den Austausch des aktuellen Stands. Abbrechen verändert keine Aufgaben oder Verlaufsdaten.
+
+Eine Wiederherstellung ersetzt den aktuellen Stand; sie führt keine Bestände zusammen.
+Erinnerungen sind dabei standardmäßig ausgeschaltet. Eine ausdrückliche Übernahme fragt auf
+dem iPhone gegebenenfalls die Benachrichtigungsberechtigung an. Abgelaufene einmalige Erinnerungen
+werden nicht neu terminiert. Die JSON-Datei ist nicht verschlüsselt und sollte geschützt aufbewahrt werden.
+Es erfolgt kein automatischer Upload und keine neue Cloud-Synchronisierung.
+
+Sicherungen sind auf 5 MiB begrenzt. Fremde Dateien, doppelte IDs, beschädigte Daten, unbekannte
+Kategorien und nicht unterstützte Versionen werden abgewiesen. Die Daten werden nie still gekürzt.
+Vor dem Ersetzen eines bereits vorhandenen v4-Stands wird die bisher gespeicherte Rohfassung intern
+unter mein-alltag.before-restore.v4 behalten. Diese einzelne technische Rückfallkopie ersetzt keine
+selbst exportierte Sicherung. Veraltete wartende Speicheraufträge werden beim Import verworfen.
+
+Die Speicher-Version 4 übernimmt v3, v2 und v1; ältere Schlüssel bleiben als Migrationsquelle erhalten.
+Persönliche Exporte mit dem Standard-Dateinamen werden von Git ausgeschlossen.
+
+Für die Datei-Menüs wurden expo-document-picker, expo-file-system und expo-sharing ergänzt.
+Validiert: 40 Tests, TypeScript, Web-Export, iOS-Hermes-Bundle und Expo Doctor (20/20).
+Die tatsächliche iPhone-Dateiauswahl und „In Dateien sichern“ stehen als Gerätetest noch aus.
+Der lokale Expo-Server war für eine zusätzliche Browser-Bedienprüfung nicht erreichbar.
+Expo SDK 58 wurde auf den kompatiblen Patch 58.0.20 aktualisiert.
+
+Die Paketprüfung meldet weiterhin die bekannten Entwicklungsabhängigkeiten Zod (3 hohe
+Meldungen einschließlich Expo-CLI-Kette) und deepmerge (5 niedrige Meldungen einschließlich
+Konfigurationswerkzeugen). Ein erzwungener inkompatibler Versionswechsel wurde nicht vorgenommen.
+Die Backup-Validierung verwendet diese beiden Bibliotheken nicht.

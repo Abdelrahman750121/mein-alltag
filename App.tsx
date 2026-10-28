@@ -21,6 +21,10 @@ import {
   isTaskDone,
   formatTime,
   taskStreak,
+  Category,
+  CategoryFilter,
+  categoryLabel,
+  filterTasks,
   readProgress,
   removeProgressTask,
   emptyProgress,
@@ -35,21 +39,27 @@ import History, { useLocalDay } from "./History";
 import WeekOverview from "./WeekOverview";
 import TaskSettings from "./TaskSettings";
 import { syncReminders } from "./reminders";
+import CategoryPicker from "./CategoryPicker";
+import BackupPanel from "./BackupPanel";
+import { persistRestoration } from "./backup";
 
 const ideas = ["Kochen", "Spielen", "Buch lesen", "Laufen"];
 
 function TasksScreen() {
   const [progress, setProgress] = useState<Progress>(emptyProgress);
   const today = useLocalDay();
-  const tasks = progress.tasks.map((task) => ({
+  const [category, setCategory] = useState<Category>("none");
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+  const allTasks = progress.tasks.map((task) => ({
     ...task,
     done: isTaskDone(progress, task, today),
   }));
+  const tasks = filterTasks(allTasks, categoryFilter);
   const [daily, setDaily] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reminderError, setReminderError] = useState("");
   const [refreshReminders, setRefreshReminders] = useState(0);
-  const editingTask = tasks.find((task) => task.id === editingId);
+  const editingTask = allTasks.find((task) => task.id === editingId);
   const [title, setTitle] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,6 +69,8 @@ function TasksScreen() {
   const [retry, setRetry] = useState(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const saveVersion = useRef(0);
+  const saveGeneration = useRef(0);
+  const restoring = useRef(false);
   const sequence = useRef(0);
 
   async function load() {
@@ -84,13 +96,15 @@ function TasksScreen() {
     return () => subscription.remove();
   }, []);
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || restoring.current) return;
+    const generation = saveGeneration.current;
     const version = ++saveVersion.current;
     const snapshot = JSON.stringify(progress);
     setSaving(true);
     saveQueue.current = saveQueue.current
       .catch(() => {})
       .then(async () => {
+        if (generation !== saveGeneration.current) return;
         try {
           await AsyncStorage.setItem(STORAGE_KEY, snapshot);
           if (version === saveVersion.current) setSaveError(false);
@@ -113,16 +127,53 @@ function TasksScreen() {
       });
   }, [progress, loaded, retry, today, refreshReminders]);
 
+  async function restore(candidate: Progress) {
+    restoring.current = true;
+    ++saveGeneration.current;
+    ++saveVersion.current;
+    const operation = saveQueue.current
+      .catch(() => {})
+      .then(async () => {
+        const restored = await persistRestoration(AsyncStorage, candidate);
+        restoring.current = false;
+        setEditingId(null);
+        setCategoryFilter("all");
+        setProgress(restored);
+        setLoaded(true);
+        setLoading(false);
+        setError("");
+        setSaveError(false);
+        setReminderError("");
+      });
+    saveQueue.current = operation;
+    try {
+      await operation;
+    } catch (error) {
+      setSaveError(true);
+      throw new Error(
+        "Die Wiederherstellung konnte nicht auf dem Gerät gespeichert werden. Bitte versuche es erneut.",
+        { cause: error },
+      );
+    } finally {
+      restoring.current = false;
+      setSaving(false);
+    }
+  }
+
   function add(value = title) {
     if (!loaded || !value.trim()) return;
     const id = `${Date.now()}-${++sequence.current}-${Math.random().toString(36).slice(2)}`;
-    setProgress((current) => addProgressTask(current, value, id, daily));
+    setProgress((current) =>
+      addProgressTask(current, value, id, daily, category),
+    );
     setTitle("");
+    if (categoryFilter !== "all" && categoryFilter !== category)
+      setCategoryFilter(category);
     Keyboard.dismiss();
   }
-  const completed = tasks.filter((task) => task.done).length;
-  const percent = tasks.length
-    ? Math.round((completed / tasks.length) * 100)
+  const completed = allTasks.filter((task) => task.done).length;
+  const percent = allTasks.length
+    ? Math.round((completed / allTasks.length) * 100)
     : 0;
   function row(task: Task) {
     const streak = task.daily ? taskStreak(progress, task.id, today) : null;
@@ -152,6 +203,7 @@ function TasksScreen() {
               {task.title}
             </Text>
             <Text style={styles.taskMeta}>
+              {categoryLabel(task.category)} ·{" "}
               {task.daily ? "Täglich" : "Einmalig"}
               {task.reminder
                 ? ` · Erinnerung ${formatTime(task.reminder)}`
@@ -224,7 +276,7 @@ function TasksScreen() {
               <View>
                 <Text style={styles.cardEyebrow}>DEIN FORTSCHRITT</Text>
                 <Text style={styles.progressTitle}>
-                  {tasks.length && completed === tasks.length
+                  {allTasks.length && completed === allTasks.length
                     ? "Alles geschafft!"
                     : "Jeder Haken zählt."}
                 </Text>
@@ -237,7 +289,7 @@ function TasksScreen() {
               accessibilityLabel="Erledigte Aufgaben"
               accessibilityValue={{
                 min: 0,
-                max: tasks.length || 1,
+                max: allTasks.length || 1,
                 now: completed,
               }}
             >
@@ -245,7 +297,7 @@ function TasksScreen() {
             </View>
             <View style={styles.progressBottom}>
               <Text style={styles.progressCaption}>
-                {completed} von {tasks.length} erledigt
+                {completed} von {allTasks.length} erledigt
               </Text>
               <Text style={styles.progressPercent}>{percent}%</Text>
             </View>
@@ -274,7 +326,11 @@ function TasksScreen() {
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Deine Aufgaben</Text>
-                <Text style={styles.count}>{tasks.length}</Text>
+                <Text style={styles.count}>
+                  {categoryFilter === "all"
+                    ? tasks.length
+                    : `${tasks.length} / ${allTasks.length}`}
+                </Text>
               </View>
               <View style={styles.inputBox}>
                 <TextInput
@@ -311,6 +367,16 @@ function TasksScreen() {
                 </View>
                 <Text style={styles.dailyLabel}>Täglich wiederholen</Text>
               </Pressable>
+              <Text style={styles.categoryHeading}>
+                Kategorie für neue Aufgaben
+              </Text>
+              <CategoryPicker
+                value={category}
+                label="Neue Aufgabe – Kategorie"
+                onChange={(value) => {
+                  if (value !== "all") setCategory(value);
+                }}
+              />
               <View style={styles.ideas}>
                 {ideas.map((idea) => (
                   <Pressable
@@ -324,15 +390,27 @@ function TasksScreen() {
                   </Pressable>
                 ))}
               </View>
+              <Text style={styles.categoryHeading}>Aufgaben filtern</Text>
+              <CategoryPicker
+                value={categoryFilter}
+                onChange={setCategoryFilter}
+                includeAll
+                label="Kategorie anzeigen"
+              />
               {!tasks.length ? (
                 <View style={styles.empty}>
                   <View style={styles.emptyIcon}>
                     <Text style={styles.emptyCheck}>✓</Text>
                   </View>
-                  <Text style={styles.emptyTitle}>Dein Tag, deine Pläne.</Text>
+                  <Text style={styles.emptyTitle}>
+                    {allTasks.length
+                      ? "Hier ist noch Platz."
+                      : "Dein Tag, deine Pläne."}
+                  </Text>
                   <Text style={styles.emptyText}>
-                    Trage deine erste Aufgabe ein oder tippe auf einen
-                    Vorschlag.
+                    {allTasks.length
+                      ? "In dieser Kategorie gibt es noch keine Aufgaben. Wähle eine andere Kategorie oder lege eine neue Aufgabe an."
+                      : "Trage deine erste Aufgabe ein oder tippe auf einen Vorschlag."}
                   </Text>
                 </View>
               ) : (
@@ -343,10 +421,11 @@ function TasksScreen() {
                       {tasks.filter((task) => !task.done).map(row)}
                     </View>
                   )}
-                  {completed > 0 && (
+                  {tasks.some((task) => task.done) && (
                     <View style={styles.group}>
                       <Text style={styles.groupTitle}>
-                        SCHON GESCHAFFT · {completed}
+                        SCHON GESCHAFFT ·{" "}
+                        {tasks.filter((task) => task.done).length}
                       </Text>
                       {tasks.filter((task) => task.done).map(row)}
                     </View>
@@ -397,6 +476,11 @@ function TasksScreen() {
               )}
             </>
           )}
+          <BackupPanel
+            progress={loaded ? progress : null}
+            loading={loading}
+            onRestore={restore}
+          />
           <Text style={styles.footer}>
             Du musst nicht alles auf einmal schaffen.
           </Text>
@@ -427,6 +511,12 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  categoryHeading: {
+    color: "#526747",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 12,
+  },
   streak: {
     color: "#3F6837",
     fontSize: 11,

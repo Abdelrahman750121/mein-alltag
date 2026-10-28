@@ -12,6 +12,10 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {},
-    "plugins": ["expo-status-bar", "expo-notifications"]
+    "plugins": [
+      "expo-status-bar",
+      "expo-notifications",
+      "expo-sharing"
+    ]
   }
 }
