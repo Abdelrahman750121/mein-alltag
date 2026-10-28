@@ -42,10 +42,13 @@ import { syncReminders } from "./reminders";
 import CategoryPicker from "./CategoryPicker";
 import BackupPanel from "./BackupPanel";
 import { persistRestoration } from "./backup";
+import BottomTabs, { TabKey } from "./BottomTabs";
+import { StreakPanel, CategorySummary } from "./ScreenPanels";
 
 const ideas = ["Kochen", "Spielen", "Buch lesen", "Laufen"];
 
 function TasksScreen() {
+  const [activeTab, setActiveTab] = useState<TabKey>("today");
   const [progress, setProgress] = useState<Progress>(emptyProgress);
   const today = useLocalDay();
   const [category, setCategory] = useState<Category>("none");
@@ -239,6 +242,72 @@ function TasksScreen() {
       </View>
     );
   }
+  function changeTab(tab: TabKey) {
+    Keyboard.dismiss();
+    setActiveTab(tab);
+  }
+  function loadingState() {
+    return loading ? (
+      <View style={styles.empty}>
+        <ActivityIndicator color="#235C45" />
+        <Text style={styles.emptyText}>Deine Aufgaben werden geladen …</Text>
+      </View>
+    ) : !loaded ? (
+      <View style={styles.errorBox}>
+        <Text accessibilityRole="alert" style={styles.errorText}>
+          {error}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void load()}
+          style={styles.retry}
+        >
+          <Text style={styles.retryText}>Erneut versuchen</Text>
+        </Pressable>
+      </View>
+    ) : null;
+  }
+  function storageStatus() {
+    return loaded ? (
+      <>
+        {!!reminderError && (
+          <View style={styles.errorBox}>
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              Erinnerungen: {reminderError}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setRetry((value) => value + 1)}
+              style={styles.retry}
+            >
+              <Text style={styles.retryText}>
+                Erinnerungen erneut einrichten
+              </Text>
+            </Pressable>
+          </View>
+        )}
+        {saveError ? (
+          <View style={styles.errorBox}>
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              Speichern fehlgeschlagen. Bitte lass die App offen und versuche es
+              erneut.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setRetry((value) => value + 1)}
+              style={styles.retry}
+            >
+              <Text style={styles.retryText}>Erneut speichern</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={styles.storageNote} accessibilityLiveRegion="polite">
+            {saving ? "Wird gespeichert …" : "✓ Auf diesem Gerät gespeichert"}
+          </Text>
+        )}
+      </>
+    ) : null;
+  }
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar style="dark" />
@@ -246,245 +315,277 @@ function TasksScreen() {
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
-          contentContainerStyle={styles.page}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            <Text style={styles.brand}>
-              My progress<Text style={styles.brandDot}>.</Text>
-            </Text>
-            <View style={styles.dayBadge}>
-              <Text style={styles.dayText}>DEIN TEMPO</Text>
-            </View>
-          </View>
-          <Text style={styles.date}>
-            {dayDate(today).toLocaleDateString("de-AT", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </Text>
-          <Text style={styles.heading}>
-            Kleine Schritte.{"\n"}Ein guter Tag.
-          </Text>
-          <Text style={styles.subtitle}>
-            Platz für alles, was du dir vornimmst.
-          </Text>
-          <View style={styles.progressCard}>
-            <View style={styles.progressTop}>
-              <View>
-                <Text style={styles.cardEyebrow}>DEIN FORTSCHRITT</Text>
-                <Text style={styles.progressTitle}>
-                  {allTasks.length && completed === allTasks.length
-                    ? "Alles geschafft!"
-                    : "Jeder Haken zählt."}
-                </Text>
-              </View>
-              <Text style={styles.spark}>✳</Text>
-            </View>
-            <View
-              style={styles.progressTrack}
-              accessibilityRole="progressbar"
-              accessibilityLabel="Erledigte Aufgaben"
-              accessibilityValue={{
-                min: 0,
-                max: allTasks.length || 1,
-                now: completed,
-              }}
+        <View style={styles.flex}>
+          <View
+            style={activeTab === "today" ? styles.flex : styles.hidden}
+            accessibilityElementsHidden={activeTab !== "today"}
+            importantForAccessibility={
+              activeTab === "today" ? "auto" : "no-hide-descendants"
+            }
+          >
+            <ScrollView
+              contentContainerStyle={styles.page}
+              keyboardShouldPersistTaps="handled"
             >
-              <View style={[styles.progressFill, { width: `${percent}%` }]} />
-            </View>
-            <View style={styles.progressBottom}>
-              <Text style={styles.progressCaption}>
-                {completed} von {allTasks.length} erledigt
-              </Text>
-              <Text style={styles.progressPercent}>{percent}%</Text>
-            </View>
-          </View>
-          {loading ? (
-            <View style={styles.empty}>
-              <ActivityIndicator color="#235C45" />
-              <Text style={styles.emptyText}>
-                Deine Aufgaben werden geladen …
-              </Text>
-            </View>
-          ) : !loaded ? (
-            <View style={styles.errorBox}>
-              <Text accessibilityRole="alert" style={styles.errorText}>
-                {error}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => void load()}
-                style={styles.retry}
-              >
-                <Text style={styles.retryText}>Erneut versuchen</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Deine Aufgaben</Text>
-                <Text style={styles.count}>
-                  {categoryFilter === "all"
-                    ? tasks.length
-                    : `${tasks.length} / ${allTasks.length}`}
+              <View style={styles.header}>
+                <Text style={styles.brand}>
+                  My progress<Text style={styles.brandDot}>.</Text>
                 </Text>
-              </View>
-              <View style={styles.inputBox}>
-                <TextInput
-                  accessibilityLabel="Neue Aufgabe"
-                  placeholder="Was möchtest du machen?"
-                  placeholderTextColor="#7D867E"
-                  style={styles.input}
-                  value={title}
-                  onChangeText={setTitle}
-                  maxLength={100}
-                  returnKeyType="done"
-                  onSubmitEditing={() => add()}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Aufgabe hinzufügen"
-                  disabled={!title.trim()}
-                  onPress={() => add()}
-                  style={[styles.addButton, !title.trim() && styles.disabled]}
-                >
-                  <Text style={styles.addText}>+</Text>
-                </Pressable>
-              </View>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityLabel="Neue Aufgaben täglich wiederholen"
-                accessibilityState={{ checked: daily }}
-                aria-checked={daily}
-                onPress={() => setDaily((value) => !value)}
-                style={styles.dailyChoice}
-              >
-                <View style={[styles.checkbox, daily && styles.checkboxDone]}>
-                  <Text style={styles.check}>{daily ? "✓" : ""}</Text>
+                <View style={styles.dayBadge}>
+                  <Text style={styles.dayText}>DEIN TEMPO</Text>
                 </View>
-                <Text style={styles.dailyLabel}>Täglich wiederholen</Text>
-              </Pressable>
-              <Text style={styles.categoryHeading}>
-                Kategorie für neue Aufgaben
+              </View>
+              <Text style={styles.date}>
+                {dayDate(today).toLocaleDateString("de-AT", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
               </Text>
-              <CategoryPicker
-                value={category}
-                label="Neue Aufgabe – Kategorie"
-                onChange={(value) => {
-                  if (value !== "all") setCategory(value);
-                }}
-              />
-              <View style={styles.ideas}>
-                {ideas.map((idea) => (
-                  <Pressable
-                    key={idea}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${idea} hinzufügen`}
-                    onPress={() => add(idea)}
-                    style={styles.idea}
-                  >
-                    <Text style={styles.ideaText}>+ {idea}</Text>
-                  </Pressable>
-                ))}
-              </View>
-              <Text style={styles.categoryHeading}>Aufgaben filtern</Text>
-              <CategoryPicker
-                value={categoryFilter}
-                onChange={setCategoryFilter}
-                includeAll
-                label="Kategorie anzeigen"
-              />
-              {!tasks.length ? (
-                <View style={styles.empty}>
-                  <View style={styles.emptyIcon}>
-                    <Text style={styles.emptyCheck}>✓</Text>
+              <Text style={styles.heading}>
+                Kleine Schritte.{"\n"}Ein guter Tag.
+              </Text>
+              <Text style={styles.subtitle}>
+                Platz für alles, was du dir vornimmst.
+              </Text>
+              <View style={styles.progressCard}>
+                <View style={styles.progressTop}>
+                  <View>
+                    <Text style={styles.cardEyebrow}>DEIN FORTSCHRITT</Text>
+                    <Text style={styles.progressTitle}>
+                      {allTasks.length && completed === allTasks.length
+                        ? "Alles geschafft!"
+                        : "Jeder Haken zählt."}
+                    </Text>
                   </View>
-                  <Text style={styles.emptyTitle}>
-                    {allTasks.length
-                      ? "Hier ist noch Platz."
-                      : "Dein Tag, deine Pläne."}
-                  </Text>
-                  <Text style={styles.emptyText}>
-                    {allTasks.length
-                      ? "In dieser Kategorie gibt es noch keine Aufgaben. Wähle eine andere Kategorie oder lege eine neue Aufgabe an."
-                      : "Trage deine erste Aufgabe ein oder tippe auf einen Vorschlag."}
-                  </Text>
+                  <Text style={styles.spark}>✳</Text>
                 </View>
-              ) : (
+                <View
+                  style={styles.progressTrack}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Erledigte Aufgaben"
+                  accessibilityValue={{
+                    min: 0,
+                    max: allTasks.length || 1,
+                    now: completed,
+                  }}
+                >
+                  <View
+                    style={[styles.progressFill, { width: `${percent}%` }]}
+                  />
+                </View>
+                <View style={styles.progressBottom}>
+                  <Text style={styles.progressCaption}>
+                    {completed} von {allTasks.length} erledigt
+                  </Text>
+                  <Text style={styles.progressPercent}>{percent}%</Text>
+                </View>
+              </View>
+
+              {loadingState()}
+              {loaded && (
                 <>
-                  {tasks.some((task) => !task.done) && (
-                    <View style={styles.group}>
-                      <Text style={styles.groupTitle}>NOCH VOR DIR</Text>
-                      {tasks.filter((task) => !task.done).map(row)}
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Deine Aufgaben</Text>
+                    <Text style={styles.count}>
+                      {categoryFilter === "all"
+                        ? tasks.length
+                        : `${tasks.length} / ${allTasks.length}`}
+                    </Text>
+                  </View>
+                  <View style={styles.inputBox}>
+                    <TextInput
+                      accessibilityLabel="Neue Aufgabe"
+                      placeholder="Was möchtest du machen?"
+                      placeholderTextColor="#7D867E"
+                      style={styles.input}
+                      value={title}
+                      onChangeText={setTitle}
+                      maxLength={100}
+                      returnKeyType="done"
+                      onSubmitEditing={() => add()}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Aufgabe hinzufügen"
+                      disabled={!title.trim()}
+                      onPress={() => add()}
+                      style={[
+                        styles.addButton,
+                        !title.trim() && styles.disabled,
+                      ]}
+                    >
+                      <Text style={styles.addText}>+</Text>
+                    </Pressable>
+                  </View>
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityLabel="Neue Aufgaben täglich wiederholen"
+                    accessibilityState={{ checked: daily }}
+                    aria-checked={daily}
+                    onPress={() => setDaily((value) => !value)}
+                    style={styles.dailyChoice}
+                  >
+                    <View
+                      style={[styles.checkbox, daily && styles.checkboxDone]}
+                    >
+                      <Text style={styles.check}>{daily ? "✓" : ""}</Text>
                     </View>
-                  )}
-                  {tasks.some((task) => task.done) && (
-                    <View style={styles.group}>
-                      <Text style={styles.groupTitle}>
-                        SCHON GESCHAFFT ·{" "}
-                        {tasks.filter((task) => task.done).length}
+                    <Text style={styles.dailyLabel}>Täglich wiederholen</Text>
+                  </Pressable>
+                  <Text style={styles.categoryHeading}>
+                    Kategorie für neue Aufgaben
+                  </Text>
+                  <CategoryPicker
+                    value={category}
+                    label="Neue Aufgabe – Kategorie"
+                    onChange={(value) => {
+                      if (value !== "all") setCategory(value);
+                    }}
+                  />
+                  <View style={styles.ideas}>
+                    {ideas.map((idea) => (
+                      <Pressable
+                        key={idea}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${idea} hinzufügen`}
+                        onPress={() => add(idea)}
+                        style={styles.idea}
+                      >
+                        <Text style={styles.ideaText}>+ {idea}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Text style={styles.categoryHeading}>Aufgaben filtern</Text>
+                  <CategoryPicker
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                    includeAll
+                    label="Kategorie anzeigen"
+                  />
+                  {!tasks.length ? (
+                    <View style={styles.empty}>
+                      <View style={styles.emptyIcon}>
+                        <Text style={styles.emptyCheck}>✓</Text>
+                      </View>
+                      <Text style={styles.emptyTitle}>
+                        {allTasks.length
+                          ? "Hier ist noch Platz."
+                          : "Dein Tag, deine Pläne."}
                       </Text>
-                      {tasks.filter((task) => task.done).map(row)}
+                      <Text style={styles.emptyText}>
+                        {allTasks.length
+                          ? "In dieser Kategorie gibt es noch keine Aufgaben. Wähle eine andere Kategorie oder lege eine neue Aufgabe an."
+                          : "Trage deine erste Aufgabe ein oder tippe auf einen Vorschlag."}
+                      </Text>
                     </View>
+                  ) : (
+                    <>
+                      {tasks.some((task) => !task.done) && (
+                        <View style={styles.group}>
+                          <Text style={styles.groupTitle}>NOCH VOR DIR</Text>
+                          {tasks.filter((task) => !task.done).map(row)}
+                        </View>
+                      )}
+                      {tasks.some((task) => task.done) && (
+                        <View style={styles.group}>
+                          <Text style={styles.groupTitle}>
+                            SCHON GESCHAFFT ·{" "}
+                            {tasks.filter((task) => task.done).length}
+                          </Text>
+                          {tasks.filter((task) => task.done).map(row)}
+                        </View>
+                      )}
+                    </>
                   )}
                 </>
               )}
-              <WeekOverview progress={progress} today={today} />
-              <History progress={progress} today={today} />
-              {!!reminderError && (
-                <View style={styles.errorBox}>
-                  <Text accessibilityRole="alert" style={styles.errorText}>
-                    Erinnerungen: {reminderError}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setRetry((value) => value + 1)}
-                    style={styles.retry}
-                  >
-                    <Text style={styles.retryText}>
-                      Erinnerungen erneut einrichten
-                    </Text>
-                  </Pressable>
-                </View>
+              {storageStatus()}
+              <Text style={styles.footer}>
+                Du musst nicht alles auf einmal schaffen.
+              </Text>
+            </ScrollView>
+          </View>
+          <View
+            style={activeTab === "history" ? styles.flex : styles.hidden}
+            accessibilityElementsHidden={activeTab !== "history"}
+            importantForAccessibility={
+              activeTab === "history" ? "auto" : "no-hide-descendants"
+            }
+          >
+            <ScrollView contentContainerStyle={styles.page}>
+              <Text style={styles.brand}>My progress.</Text>
+              <Text accessibilityRole="header" style={styles.screenTitle}>
+                Dein Verlauf
+              </Text>
+              <Text style={styles.subtitle}>
+                Schau nach, was du an vergangenen Tagen geschafft hast.
+              </Text>
+              {loadingState()}
+              {loaded && <History progress={progress} today={today} />}
+              {storageStatus()}
+            </ScrollView>
+          </View>
+          <View
+            style={activeTab === "stats" ? styles.flex : styles.hidden}
+            accessibilityElementsHidden={activeTab !== "stats"}
+            importantForAccessibility={
+              activeTab === "stats" ? "auto" : "no-hide-descendants"
+            }
+          >
+            <ScrollView contentContainerStyle={styles.page}>
+              <Text style={styles.brand}>My progress.</Text>
+              <Text accessibilityRole="header" style={styles.screenTitle}>
+                Deine Statistik
+              </Text>
+              <Text style={styles.subtitle}>
+                Deine Woche und die Serien deiner täglichen Aufgaben.
+              </Text>
+              {loadingState()}
+              {loaded && (
+                <>
+                  <WeekOverview progress={progress} today={today} />
+                  <StreakPanel progress={progress} today={today} />
+                </>
               )}
-              {saveError ? (
-                <View style={styles.errorBox}>
-                  <Text accessibilityRole="alert" style={styles.errorText}>
-                    Speichern fehlgeschlagen. Bitte lass die App offen und
-                    versuche es erneut.
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setRetry((value) => value + 1)}
-                    style={styles.retry}
-                  >
-                    <Text style={styles.retryText}>Erneut speichern</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Text
-                  style={styles.storageNote}
-                  accessibilityLiveRegion="polite"
-                >
-                  {saving
-                    ? "Wird gespeichert …"
-                    : "✓ Auf diesem Gerät gespeichert"}
-                </Text>
+              {storageStatus()}
+            </ScrollView>
+          </View>
+          <View
+            style={activeTab === "settings" ? styles.flex : styles.hidden}
+            accessibilityElementsHidden={activeTab !== "settings"}
+            importantForAccessibility={
+              activeTab === "settings" ? "auto" : "no-hide-descendants"
+            }
+          >
+            <ScrollView contentContainerStyle={styles.page}>
+              <Text style={styles.brand}>My progress.</Text>
+              <Text accessibilityRole="header" style={styles.screenTitle}>
+                Einstellungen
+              </Text>
+              <Text style={styles.subtitle}>
+                Deine Kategorien und die Sicherung deiner Daten.
+              </Text>
+              {loadingState()}
+              {loaded && (
+                <CategorySummary
+                  progress={progress}
+                  onSelect={(value) => {
+                    setCategoryFilter(value);
+                    changeTab("today");
+                  }}
+                />
               )}
-            </>
-          )}
-          <BackupPanel
-            progress={loaded ? progress : null}
-            loading={loading}
-            onRestore={restore}
-          />
-          <Text style={styles.footer}>
-            Du musst nicht alles auf einmal schaffen.
-          </Text>
-        </ScrollView>
+              <BackupPanel
+                progress={loaded ? progress : null}
+                loading={loading}
+                onRestore={restore}
+              />
+              {storageStatus()}
+            </ScrollView>
+          </View>
+        </View>
+        <BottomTabs active={activeTab} onChange={changeTab} />
       </KeyboardAvoidingView>
       {editingTask && (
         <TaskSettings
@@ -511,6 +612,14 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  hidden: { display: "none" },
+  screenTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#203C30",
+    marginTop: 30,
+    letterSpacing: -1,
+  },
   categoryHeading: {
     color: "#526747",
     fontSize: 12,

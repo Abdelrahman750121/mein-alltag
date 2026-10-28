@@ -38,7 +38,7 @@ Codex entwickelt und prüft die App. Regeln und Zustimmung bei Funktionsänderun
 stehen in AGENTS.md. Ein separates Codex SDK ist für diesen Workflow nicht nötig.
 
 ## Bisherige Validierung
-- 40 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungen, Statistiken, Serien, Bearbeiten, Kategorien und Datensicherung.
+- 42 automatisierte Tests: Aufgaben, Speicher, Verlauf, Migration, Tageswechsel, Erinnerungen, Statistiken, Serien, Bearbeiten, Kategorien und Datensicherung.
 - TypeScript-Prüfung und Web-Produktionsbuild.
 - Native Tests auf einem echten Handy stehen noch aus.
 
@@ -152,3 +152,16 @@ Die Paketprüfung meldet weiterhin die bekannten Entwicklungsabhängigkeiten Zod
 Meldungen einschließlich Expo-CLI-Kette) und deepmerge (5 niedrige Meldungen einschließlich
 Konfigurationswerkzeugen). Ein erzwungener inkompatibler Versionswechsel wurde nicht vorgenommen.
 Die Backup-Validierung verwendet diese beiden Bibliotheken nicht.
+
+
+## Navigation
+Die untere Navigation wechselt zwischen vier Bereichen:
+- Heute: Aufgaben anlegen, bearbeiten, filtern und abhaken.
+- Verlauf: Heute, gestern und vergangene Tage ansehen.
+- Statistik: Wochenübersicht sowie aktuelle und längste Serien.
+- Einstellungen: Kategorien öffnen und Datensicherungen exportieren oder laden.
+
+Eingaben und die gewählte Verlaufsansicht bleiben beim Seitenwechsel erhalten.
+Zwei freistehende Leerzeichen außerhalb von Text-Komponenten wurden entfernt.
+Eine zusätzliche Prüfung erkennt solche Textknoten in den App-Komponenten.
+Validiert: 42 Tests, TypeScript und Web-Build. Die korrigierte Ansicht muss noch auf dem iPhone geprüft werden.

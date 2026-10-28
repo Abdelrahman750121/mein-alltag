@@ -27,7 +27,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test": "node --test tasks.test.mjs",
+    "test": "node --test tasks.test.mjs ui-text.test.mjs",
     "typecheck": "tsc --noEmit",
     "build:web": "expo export --platform web"
   },

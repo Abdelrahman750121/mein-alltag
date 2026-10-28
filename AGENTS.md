@@ -40,3 +40,5 @@ Vor Import vollständig validieren, Aufgabenzahl anzeigen und ausdrücklich best
 Erinnerungen beim Wiederherstellen standardmäßig deaktivieren; Übernahme nur auf Nutzerwunsch und mit Berechtigung.
 Wiederherstellung erst nach erfolgreichem Speichern in der Oberfläche übernehmen. Alte wartende Schreibvorgänge dürfen sie nicht überschreiben.
 Persönliche Backup-Dateien nicht in Git oder Quellcode-Archive aufnehmen. Native Dateimenüs nur als getestet bezeichnen, wenn wirklich am Gerät geprüft.
+
+Navigation: Heute, Verlauf, Statistik und Einstellungen. Vom Nutzer am 28.10.2026 zum Speichern in Git und GitHub freigegeben. Seitenwechsel erhalten Eingaben und den gewählten Verlauf; Datenmodell und lokale Speicherung bleiben erhalten.
